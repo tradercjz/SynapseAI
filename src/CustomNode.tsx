@@ -4,6 +4,7 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { Paper, TextField } from '@mui/material';
 import type { NodeData } from './types';
 import AgentNodeContent from './AgentNodeContent';
+import classNames from 'classnames'; 
 
 const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, id }) => {
   const [prompt, setPrompt] = useState('');
@@ -55,8 +56,15 @@ const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, id }) => {
 
   // --- Default Rendering for USER_QUERY and AI_RESPONSE ---
   const isAI = data.nodeType === 'AI_RESPONSE';
+
+  const nodeClasses = classNames('custom-node', {
+    'streaming': isAI && data.isLoading,
+    'finished-success': isAI && !data.isLoading && data.taskStatus === 'success',
+    'finished-error': isAI && !data.isLoading && data.taskStatus === 'error',
+  });
+
   return (
-    <div className="custom-node">
+    <div className={nodeClasses}>
       <Handle type="target" position={Position.Top} />
       
       <div className="custom-node-label">{data.label}</div>

@@ -14,6 +14,8 @@ export type NodeData = {
   // 新增: 节点级别的加载状态
   isLoading?: boolean;
 
+  taskStatus?: 'success' | 'error';
+
   // onAgentClick 签名保持不变
   onAgentClick?: (id: string, label: string) => void;
   onSubmit?: (prompt: string, nodeId: string) => void;

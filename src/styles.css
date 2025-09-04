@@ -167,3 +167,51 @@ body {
   /* Make sure it has a height, which it should get from its container */
   height: 100%; 
 }
+
+/* --- ADDED FOR V7.1: Streaming Border Effect --- */
+
+/* Base style for the node that is currently loading/streaming */
+.custom-node.streaming {
+  /* We use a large, transparent border to host our gradient */
+  border: 2px solid transparent;
+  background-clip: padding-box; /* This is crucial */
+  position: relative;
+}
+
+/* The pseudo-element that creates the animated gradient border */
+.custom-node.streaming::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  z-index: -1;
+  margin: -3px; /* Must be -(border-width + 1px) to appear outside */
+  border-radius: inherit; /* Use the parent's border-radius */
+  
+  /* The animated gradient */
+  background: linear-gradient(to right, #64b5f6, #81c784, #ffd54f, #64b5f6);
+  background-size: 200% 200%;
+  
+  /* The animation */
+  animation: gradient-animation 3s ease infinite;
+}
+
+/* Keyframes for the gradient animation */
+@keyframes gradient-animation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Style for when the task is finished successfully */
+.custom-node.finished-success {
+  border: 2px solid #4caf50; /* A solid green border */
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.3);
+  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
+}
+
+/* Style for when the task finishes with an error */
+.custom-node.finished-error {
+  border: 2px solid #f44336; /* A solid red border */
+  box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
+  transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
+}

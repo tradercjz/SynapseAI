@@ -26,6 +26,9 @@ importers:
       axios:
         specifier: ^1.11.0
         version: 1.11.0
+      classnames:
+        specifier: ^2.5.1
+        version: 2.5.1
       dagre:
         specifier: ^0.8.5
         version: 0.8.5
@@ -45,6 +48,9 @@ importers:
       '@eslint/js':
         specifier: ^9.33.0
         version: 9.34.0
+      '@types/classnames':
+        specifier: ^2.3.4
+        version: 2.3.4
       '@types/dagre':
         specifier: ^0.7.53
         version: 0.7.53
@@ -710,6 +716,10 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/classnames@2.3.4':
+    resolution: {integrity: sha512-dwmfrMMQb9ujX1uYGvB5ERDlOzBNywnZAZBtOe107/hORWP05ESgU4QyaanZMWYYfd2BzrG78y13/Bju8IQcMQ==}
+    deprecated: This is a stub types definition. classnames provides its own type definitions, so you do not need this installed.
+
   '@types/d3-array@3.2.1':
     resolution: {integrity: sha512-Y2Jn2idRrLzUfAKV2LyRImR+y4oa2AntrgID95SHJxuMUrkNXmanDSed71sRNZysveJVt1hLLemQZIady0FpEg==}
 
@@ -901,6 +911,9 @@ packages:
 
   classcat@5.0.5:
     resolution: {integrity: sha512-JhZUT7JFcQy/EzW605k/ktHtncoo9vnyW/2GspNYwFlN1C/WmjuV/xtS04e9SOkL2sTdw0VAZ2UGCcQ9lR6p6w==}
+
+  classnames@2.5.1:
+    resolution: {integrity: sha512-saHYOzhIQs6wy2sVxTM6bUDsQO4F50V9RQ22qBpEdCW+I+/Wmke2HOl6lS6dTpdxVhb88/I6+Hs+438c3lfUow==}
 
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
@@ -2165,6 +2178,10 @@ snapshots:
     dependencies:
       '@babel/types': 7.28.2
 
+  '@types/classnames@2.3.4':
+    dependencies:
+      classnames: 2.5.1
+
   '@types/d3-array@3.2.1': {}
 
   '@types/d3-axis@3.0.6':
@@ -2384,6 +2401,8 @@ snapshots:
       supports-color: 7.2.0
 
   classcat@5.0.5: {}
+
+  classnames@2.5.1: {}
 
   clsx@2.1.1: {}
 
