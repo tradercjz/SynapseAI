@@ -1,27 +1,22 @@
 // src/App.tsx
 import React, { useState, useEffect } from 'react';
-import { ReactFlowProvider } from 'reactflow';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-
-import FlowCanvas from './FlowCanvas';
 import AuthControl from './components/AuthControl';
 import LoginModal from './components/LoginModal';
+import MainLayout from './components/MainLayout'; // Import our new layout component
 import './styles.css';
 
-// 创建一个基础的 MUI 主题
 const darkTheme = createTheme({
   palette: {
-    mode: 'light', // or 'dark'
+    mode: 'light',
   },
 });
 
 function App() {
-  // 从 localStorage 初始化 token，以保持登录状态
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // 当 token 状态改变时，同步到 localStorage
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
@@ -30,7 +25,7 @@ function App() {
     }
   }, [token]);
 
-  const handleLoginSuccess = (newToken) => {
+  const handleLoginSuccess = (newToken: string) => {
     setToken(newToken);
   };
 
@@ -42,21 +37,20 @@ function App() {
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <div className="app-container">
+        {/* Auth controls can now float on top of the main layout */}
         <AuthControl
           isAuthenticated={!!token}
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogoutClick={handleLogout}
         />
-
         <LoginModal
           open={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={handleLoginSuccess}
         />
-
-        <ReactFlowProvider>
-          <FlowCanvas />
-        </ReactFlowProvider>
+        
+        {/* The MainLayout is now the primary component */}
+        <MainLayout />
       </div>
     </ThemeProvider>
   );
