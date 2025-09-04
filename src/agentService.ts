@@ -39,7 +39,8 @@ export const streamAgentResponse = (
   sourceNode: Node<NodeData>,
   prompt: string,
   conversationHistory: Message[], 
-  callbacks: StreamCallbacks
+  injectedContext: object | null,
+  callbacks: StreamCallbacks,
 ) => {
   const { onUpdate, onClose, onError } = callbacks;
 
@@ -66,9 +67,20 @@ export const streamAgentResponse = (
       { content: prompt, role: 'user' }
     ];
   }
-  const requestBody = {
+
+  // Define the type for requestBody to include optional injected_context
+  type RequestBody = {
+    conversation_history: any;
+    injected_context?: object | null;
+  };
+
+  const requestBody: RequestBody = {
     conversation_history,
   };
+
+  if (injectedContext) {
+    requestBody.injected_context = injectedContext;
+  }
 
   fetchEventSource(`${API_BASE_URL}/chat`, {
     method: 'POST',
@@ -96,8 +108,21 @@ export const streamAgentResponse = (
       onClose();
     },
     onerror(err) {
-      onError(err);
-      throw err; // 必须抛出错误以停止重试
-    }
+        // This handler is for network errors or errors thrown from onopen/onmessage.
+        console.error("EventSource failed:", err);
+        
+        // Create a structured error payload to send back to the UI.
+        const errorPayload: AgentUpdate = {
+          type: 'error',
+          subtype: 'network_error',
+          message: err.message || 'A network error occurred. Please check your connection or the server status.'
+        };
+
+        // Pass the structured error to the FlowCanvas component.
+        onError(errorPayload);
+
+        // It is crucial to re-throw the error to prevent retries.
+        throw err;
+      }
   });
 };

@@ -1,6 +1,6 @@
 // 这是一个基础接口，所有从Agent流返回的更新都遵循这个结构
 export interface AgentUpdate {
-  type: "task_status" | "executor_status" | "USER_INTERACTION";
+  type: "task_status" | "executor_status" | "USER_INTERACTION" | "error" | "llm_chunk" | "react_thought" | "react_action" | "react_observation" | "end";
   subtype: string;
   message: string;
 }

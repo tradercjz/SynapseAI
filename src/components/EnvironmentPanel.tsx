@@ -51,7 +51,7 @@ const EnvironmentPanel: React.FC = () => {
   useEffect(() => {
     fetchEnvironments();
     // Optional: add a poller to auto-refresh the list
-    const intervalId = setInterval(fetchEnvironments, 1500);
+    const intervalId = setInterval(fetchEnvironments, 15000);
     return () => clearInterval(intervalId);
   }, [fetchEnvironments]);
 
