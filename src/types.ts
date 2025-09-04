@@ -18,5 +18,5 @@ export type NodeData = {
 
   // onAgentClick 签名保持不变
   onAgentClick?: (id: string, label: string) => void;
-  onSubmit?: (prompt: string, nodeId: string) => void;
+  onSubmit?:  (prompt: string, nodeId: string) => void;
 };

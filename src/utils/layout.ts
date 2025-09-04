@@ -7,6 +7,52 @@ const nodeWidth = 350;
 const nodeHeight = 150;
 const HORIZONTAL_GAP = 200; // The horizontal space between separate conversation streams
 
+const calculateNodeHeight = (node: Node<NodeData>): number => {
+    const BASE_HEIGHT = 80; 
+    
+    switch (node.data.nodeType) {
+        case 'INPUT':
+            return 60;
+        
+        case 'USER_QUERY':
+            return 80;
+            
+        case 'AI_RESPONSE':
+            // --- CRITICAL FIX: Add a defensive check here ---
+            // If agentResponse or stages is not yet defined, return a default base height.
+            if (!node.data.agentResponse?.stages) {
+                return BASE_HEIGHT;
+            }
+            
+            let estimatedContentHeight = 0;
+            // Now that we've checked, it's safe to access stages.
+            node.data.agentResponse.stages.forEach(stage => {
+                switch (stage.subtype) {
+                    case 'react_thought':
+                        estimatedContentHeight += 40;
+                        break;
+                    case 'react_action':
+                        estimatedContentHeight += 120;
+                        break;
+                    case 'react_observation':
+                        estimatedContentHeight += 60;
+                        break;
+                    case 'end':
+                        estimatedContentHeight += 80;
+                        break;
+                    default:
+                        estimatedContentHeight += 30;
+                        break;
+                }
+            });
+            return BASE_HEIGHT + estimatedContentHeight;
+            
+        default:
+            return 150;
+    }
+};
+
+
 /**
  * Partitions a graph into its connected components (separate conversation streams).
  * @param nodes - All nodes on the canvas.
@@ -62,33 +108,34 @@ const partitionGraph = (nodes: Node<NodeData>[], edges: Edge[]): { nodes: Node<N
  * @returns The same nodes with updated `position` properties.
  */
 const layoutSingleGraph = (nodes: Node<NodeData>[], edges: Edge[]): { layoutedNodes: Node<NodeData>[], width: number, height: number } => {
-  const dagreGraph = new dagre.graphlib.Graph();
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-  dagreGraph.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 80 });
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+    dagreGraph.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 80 });
 
-  nodes.forEach((node) => {
-    const height = node.data.nodeType === 'INPUT' ? 60 : nodeHeight + (node.data.agentResponse?.stages?.length || 0) * 50;
-    dagreGraph.setNode(node.id, { width: nodeWidth, height });
-  });
+    nodes.forEach((node) => {
+        const height = calculateNodeHeight(node);
+        dagreGraph.setNode(node.id, { width: nodeWidth, height });
+    });
 
-  edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target));
+    edges.forEach((edge) => dagreGraph.setEdge(edge.source, edge.target));
 
-  dagre.layout(dagreGraph);
-  
-  const graphDimensions = dagreGraph.graph();
+    dagre.layout(dagreGraph);
+    
+    const graphDimensions = dagreGraph.graph();
 
-  const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - (dagreGraph.node(node.id).height) / 2,
-      }
-    };
-  });
-  
-  return { layoutedNodes, width: graphDimensions.width || 0, height: graphDimensions.height || 0 };
+    const layoutedNodes = nodes.map((node) => {
+        const nodeWithPosition = dagreGraph.node(node.id);
+        const height = dagreGraph.node(node.id).height;
+        return {
+            ...node,
+            position: {
+                x: nodeWithPosition.x - nodeWidth / 2,
+                y: nodeWithPosition.y - height / 2,
+            }
+        };
+    });
+    
+    return { layoutedNodes, width: graphDimensions.width || 0, height: graphDimensions.height || 0 };
 };
 
 /**
