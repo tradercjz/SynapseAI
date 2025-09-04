@@ -61,6 +61,9 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   transition: box-shadow 0.2s, border-color 0.2s;
   position: relative;
+
+    max-width: 450px; /* This MUST match the `nodeWidth` in layout.ts */
+  word-wrap: break-word; /* Ensures long words or URLs wrap */
 }
 
 .custom-node.selected {
@@ -112,8 +115,7 @@ body {
   padding: 10px;
   font-family: 'Courier New', Courier, monospace;
   font-size: 13px;
-  white-space: pre-wrap; /* Allows text to wrap */
-  word-wrap: break-word;
+ 
 }
 
 
