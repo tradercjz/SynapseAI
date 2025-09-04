@@ -3,6 +3,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import ReactFlow, {
   Controls, Background, applyNodeChanges, applyEdgeChanges, addEdge,
   Node, Edge, NodeChange, EdgeChange, Connection,
+  useReactFlow
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,12 +13,41 @@ import { AgentUpdate, LlmChunk } from './agent';
 import CustomNode from './CustomNode';
 import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
+import AttachedInput from './components/AttachedInput';
+import { Message } from './agent';
 
 const initialNodes: Node<NodeData>[] = [];
+
+const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[], edges: Edge[]): Message[] => {
+  const history: Message[] = [];
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const edgeMap = new Map(edges.map(e => [e.target, e.source]));
+
+  let currentNodeId: string | undefined = targetNodeId;
+
+  while (currentNodeId) {
+    const node = nodeMap.get(currentNodeId);
+    if (!node) break;
+
+    // 根据节点内容构建 Message 对象
+    if (node.data.agentResponse) { // This is an AI response node
+      history.unshift({ id: Date.now(), sender: 'ai', content: node.data.agentResponse });
+    } else { // This is a user-initiated node
+      history.unshift({ id: Date.now(), sender: 'user', content: node.data.label });
+    }
+    
+    // 移动到父节点
+    currentNodeId = edgeMap.get(currentNodeId);
+  }
+
+  return history;
+};
 
 export default function FlowCanvas() {
   const [nodes, setNodes] = useState<Node<NodeData>[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [activeInputNodeId, setActiveInputNodeId] = useState<string | null>(null);
+  const reactFlowInstance = useReactFlow(); // 获取 React Flow 实例
 
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
@@ -34,151 +64,142 @@ export default function FlowCanvas() {
     }));
   };
   
-  const handleAgentClick = useCallback(async (sourceNodeId: string) => {
-    const sourceNode = nodes.find(n => n.id === sourceNodeId);
-    if (!sourceNode) return;
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    setActiveInputNodeId(node.id);
+  }, []);
 
-    const userPrompt = window.prompt("Ask the agent a follow-up question:", "Explain this in more detail");
-    if (!userPrompt) return;
+    const onPaneClick = useCallback(() => {
+      setActiveInputNodeId(null);
+    }, []);
+
+  // --- 核心修改在这里 ---
+ 
+
+  const handleFollowUpSubmit = useCallback((prompt: string, parentNode: Node<NodeData> | null) => {
+    const isRoot = parentNode === null;
+    
+    // For root calls (from OmniBar), the parent is a newly created user node.
+    // For follow-ups, the parent is the node that was clicked.
+    const parentNodeId = parentNode ? parentNode.id : null;
+
+    const conversationHistory = parentNodeId ? buildConversationHistory(parentNodeId, nodes, edges) : [];
 
     const responseNodeId = uuidv4();
+    
+    let position = { x: window.innerWidth / 2, y: 150 };
+    if (parentNode) {
+        position = { x: parentNode.position.x + 400, y: parentNode.position.y };
+        if (!isRoot) { // For follow-ups, place it below
+           position.x = parentNode.position.x;
+           position.y = parentNode.position.y + (parentNode.height || 100) + 80;
+        }
+    }
+
     const responseNode: Node<NodeData> = {
       id: responseNodeId,
       type: 'custom',
-      position: { x: sourceNode.position.x, y: sourceNode.position.y + (sourceNode.height || 100) + 80 },
+      position,
       data: {
         id: responseNodeId,
-        label: `Agent Response to: "${userPrompt.substring(0, 30)}..."`,
+        label: `Agent: ${prompt.substring(0, 40)}...`,
         isLoading: true,
         agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
-        onAgentClick: handleAgentClick,
+        onAgentClick: () => {},
       }
     };
     
     setNodes(nds => nds.concat(responseNode));
-    setEdges(eds => addEdge({ id: `e-${sourceNodeId}-${responseNodeId}`, source: sourceNodeId, target: responseNodeId, animated: true }, eds));
+    if (parentNodeId) {
+        setEdges(eds => addEdge({ id: `e-${parentNodeId}-${responseNodeId}`, source: parentNodeId, target: responseNodeId, animated: true }, eds));
+    }
     
-    streamAgentResponse(sourceNode, userPrompt, {
+    const apiSourceNode: Node<NodeData> = parentNode || {
+      id: 'root',
+      type: 'custom',
+      position: { x: 0, y: 0 },
+      data: {
+        id: 'root',
+        label: 'Root',
+        onAgentClick: () => {}
+      }
+    };
+
+    streamAgentResponse(apiSourceNode, prompt, conversationHistory, {
       onUpdate: (update: AgentUpdate) => {
         updateNodeData(responseNodeId, (prevData) => {
           const currentResponse = prevData.agentResponse!;
           let newStages = [...currentResponse.stages];
           let newThinkingStream = currentResponse.thinkingStream || '';
-
           if (update.subtype === 'llm_chunk') {
             newThinkingStream += (update as LlmChunk).content;
           } else {
             newThinkingStream = '';
-            newStages.push(update);
+            // Only push if update is a valid AgentStage (e.g., subtype is not 'llm_chunk')
+            if (update.subtype !== 'llm_chunk') {
+              newStages.push(update as any); // If you have a type guard, use it here instead of 'as any'
+            }
           }
-          
-          return {
-            ...prevData,
-            agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }
-          };
+          return { ...prevData, agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream } };
         });
       },
-      onClose: () => {
-        updateNodeData(responseNodeId, d => ({ ...d, isLoading: false }));
-      },
+      onClose: () => updateNodeData(responseNodeId, d => ({ ...d, isLoading: false })),
       onError: (error) => {
-        console.error("Streaming Error:", error);
-        updateNodeData(responseNodeId, d => ({ 
-          ...d, 
-          isLoading: false,
-          label: `Error: ${d.label}` 
-        }));
+          console.error("Streaming Error:", error);
+          updateNodeData(responseNodeId, d => ({ ...d, isLoading: false, label: `Error: ${d.label}` }));
       }
     });
-  }, [nodes]); 
+  }, [nodes, edges]);
 
-  // --- 核心修改在这里 ---
-  const handleCreateNode = useCallback((userPrompt: string) => {
-    // 1. 创建用户的原始输入节点 (User Node)
+   const handleCreateNode = useCallback((userPrompt: string) => {
     const userNodeId = uuidv4();
     const userNode: Node<NodeData> = {
       id: userNodeId,
       type: 'custom',
-      position: { 
-        x: window.innerWidth / 2 - 300, 
-        y: 100 + nodes.filter(n => n.position.y < 400).length * 50 // 简单布局
-      },
-      data: { id: userNodeId, label: userPrompt, onAgentClick: handleAgentClick },
+      position: { x: window.innerWidth / 2 - 350, y: 100 + nodes.length * 20 },
+      data: { id: userNodeId, label: userPrompt, onAgentClick: () => {} },
     };
+    
+    // Atomically add the user node to the state
+    setNodes(nds => nds.concat(userNode));
 
-    // 2. 立即创建AI响应节点 (AI Node)
-    const responseNodeId = uuidv4();
-    const responseNode: Node<NodeData> = {
-      id: responseNodeId,
-      type: 'custom',
-      position: { x: userNode.position.x + 400, y: userNode.position.y },
-      data: {
-        id: responseNodeId,
-        label: `Agent Analysis for: "${userPrompt.substring(0, 30)}..."`,
-        isLoading: true, // 立即进入加载状态
-        agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
-        onAgentClick: handleAgentClick,
+    // **CRITICAL FIX**: Pass the newly created `userNode` OBJECT directly to the handler.
+    // This bypasses the state update delay.
+    handleFollowUpSubmit(userPrompt, userNode);
+
+  }, [nodes, handleFollowUpSubmit]); 
+
+   const handleAttachedInputSubmit = useCallback((prompt: string, parentNodeId: string) => {
+      const parentNode = nodes.find(n => n.id === parentNodeId);
+      if(parentNode) {
+          handleFollowUpSubmit(prompt, parentNode);
       }
-    };
+  }, [nodes, handleFollowUpSubmit]);
 
-    // 3. 将两个新节点和一个连接线原子化地添加到状态中
-    setNodes(nds => nds.concat([userNode, responseNode]));
-    setEdges(eds => addEdge({ id: `e-${userNodeId}-${responseNodeId}`, source: userNodeId, target: responseNodeId, animated: true }, eds));
+  const activeNode = useMemo(() => nodes.find(n => n.id === activeInputNodeId) || null, [nodes, activeInputNodeId]);
 
-    // 4. 直接使用用户的输入触发API调用
-    streamAgentResponse(userNode, userPrompt, {
-      onUpdate: (update: AgentUpdate) => {
-        updateNodeData(responseNodeId, (prevData) => {
-          const currentResponse = prevData.agentResponse!;
-          let newStages = [...currentResponse.stages];
-          let newThinkingStream = currentResponse.thinkingStream || '';
-
-          if (update.subtype === 'llm_chunk') {
-            newThinkingStream += (update as LlmChunk).content;
-          } else {
-            newThinkingStream = '';
-            newStages.push(update);
-          }
-          
-          return {
-            ...prevData,
-            agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }
-          };
-        });
-      },
-      onClose: () => {
-        updateNodeData(responseNodeId, d => ({ ...d, isLoading: false }));
-      },
-      onError: (error) => {
-        console.error("Streaming Error:", error);
-        updateNodeData(responseNodeId, d => ({ 
-          ...d, 
-          isLoading: false,
-          label: `Error: ${d.label}` 
-        }));
-      }
-    });
-  }, [nodes, handleAgentClick]); // 依赖项现在也需要 nodes 用于布局计算
-
-  const nodesWithUpdatedHandler = useMemo(() => {
-    return nodes.map(node => ({
-      ...node,
-      data: { ...node.data, onAgentClick: handleAgentClick }
-    }));
-  }, [nodes, handleAgentClick]);
 
   return (
     <div className="flow-canvas">
       <OmniBar onCreateNode={handleCreateNode} />
+      <AttachedInput 
+        activeNode={activeNode}
+        // Use the dedicated handler for the attached input
+        onSubmit={handleAttachedInputSubmit} 
+        onClose={() => setActiveInputNodeId(null)}
+      />
+
       <ReactFlow
-        nodes={nodesWithUpdatedHandler}
+        nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick} // Clicking the background closes the input
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
+        className="flow-canvas" 
       >
         <Controls />
         <Background />

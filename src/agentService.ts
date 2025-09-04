@@ -1,6 +1,6 @@
 // src/agentService.ts
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import type { AgentUpdate } from './agent';
+import type { AgentUpdate, Message } from './agent';
 import type { Node } from 'reactflow';
 import axios from 'axios';
 import type { NodeData } from './types'; // 我们自己的 NodeData 类型
@@ -38,6 +38,7 @@ export { apiClient };
 export const streamAgentResponse = (
   sourceNode: Node<NodeData>,
   prompt: string,
+  conversationHistory: Message[], 
   callbacks: StreamCallbacks
 ) => {
   const { onUpdate, onClose, onError } = callbacks;
@@ -52,10 +53,21 @@ export const streamAgentResponse = (
   // 这里的 envId 需要一个来源，暂时硬编码或从 sourceNode 中获取
   const envId = 'some-environment-id'; 
 
+  let conversation_history;
+  if (!conversationHistory || conversationHistory.length === 0) {
+    conversation_history = [{ content: prompt, role: 'user' }];
+  } else {
+    conversation_history = [
+      
+      ...conversationHistory.map(m => ({
+        role: m.sender,
+        content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+      })),
+      { content: prompt, role: 'user' }
+    ];
+  }
   const requestBody = {
-    conversation_history: [{
-      "content": prompt, "role": "user"
-    }], // 实际应用中可以传递历史记录
+    conversation_history,
   };
 
   fetchEventSource(`${API_BASE_URL}/chat`, {

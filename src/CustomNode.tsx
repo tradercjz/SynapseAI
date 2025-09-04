@@ -16,15 +16,6 @@ const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
 
       {/* 如果正在加载，显示一个提示 */}
       {data.isLoading && <div className="loading-indicator">Agent is working...</div>}
-      
-      {selected && !data.isLoading && (
-        <button 
-          className="agent-button" 
-          onClick={() => data.onAgentClick(data.id, data.label)}
-        >
-          ✨ Ask Agent
-        </button>
-      )}
 
       <Handle type="source" position={Position.Bottom} />
     </div>

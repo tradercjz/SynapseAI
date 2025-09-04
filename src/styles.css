@@ -161,3 +161,9 @@ body {
   font-size: 0.9rem;
   color: #007bff;
 }
+
+.flow-canvas {
+  flex-grow: 1;
+  /* Make sure it has a height, which it should get from its container */
+  height: 100%; 
+}
