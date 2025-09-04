@@ -8,12 +8,13 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
 
-import { NodeData } from './types';
+import { NodeData, NodeType } from './types';
 import { AgentUpdate, LlmChunk } from './agent';
 import CustomNode from './CustomNode';
 import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
 import AttachedInput from './components/AttachedInput';
+import InputNode from './components/InputNode';
 import { Message } from './agent';
 
 const initialNodes: Node<NodeData>[] = [];
@@ -31,7 +32,7 @@ const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[],
 
     // 根据节点内容构建 Message 对象
     if (node.data.agentResponse) { // This is an AI response node
-      history.unshift({ id: Date.now(), sender: 'ai', content: node.data.agentResponse });
+      history.unshift({ id: Date.now(), sender: 'assistant', content: node.data.agentResponse });
     } else { // This is a user-initiated node
       history.unshift({ id: Date.now(), sender: 'user', content: node.data.label });
     }
@@ -49,7 +50,7 @@ export default function FlowCanvas() {
   const [activeInputNodeId, setActiveInputNodeId] = useState<string | null>(null);
   const reactFlowInstance = useReactFlow(); // 获取 React Flow 实例
 
-  const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+  const nodeTypes = useMemo(() => ({ custom: CustomNode, input: InputNode }), []);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
@@ -64,9 +65,30 @@ export default function FlowCanvas() {
     }));
   };
   
-  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-    setActiveInputNodeId(node.id);
-  }, []);
+  const onNodeClick = useCallback((event: React.MouseEvent, parentNode: Node<NodeData>) => {
+    // Prevent creating an input node from another active input node
+    if (parentNode.type === 'input') return;
+
+    // Prevent creating multiple input nodes
+    if (nodes.some(n => n.type === 'input')) return;
+
+    const inputNodeId = uuidv4();
+    const inputNode: Node<NodeData> = {
+      id: inputNodeId,
+      type: 'input',
+      position: { x: parentNode.position.x, y: parentNode.position.y + (parentNode.height || 100) + 60 },
+      data: {
+        id: inputNodeId,
+        label: '', // Input node doesn't need a label
+        nodeType: 'INPUT',
+        onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, parentNode.id),
+      }
+    };
+
+    setNodes(nds => nds.concat(inputNode));
+    setEdges(eds => addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, eds));
+
+  }, [nodes]);
 
     const onPaneClick = useCallback(() => {
       setActiveInputNodeId(null);
@@ -74,6 +96,136 @@ export default function FlowCanvas() {
 
   // --- 核心修改在这里 ---
  
+  const handleInputSubmit = (prompt: string, inputNodeId: string, parentNodeId: string) => {
+      // 1. Transform the Input Node into a permanent User Query Node
+      setNodes(nds => nds.map(n => {
+        if (n.id === inputNodeId) {
+          return {
+            ...n,
+            type: 'custom', // Change type to a standard node
+            data: {
+              ...n.data,
+              label: prompt,
+              nodeType: 'USER_QUERY',
+            }
+          };
+        }
+        return n;
+      }));
+
+      // 2. Build context and call the AI
+      const parentNode = nodes.find(n => n.id === parentNodeId);
+      if (!parentNode) return;
+
+      const conversationHistory = buildConversationHistory(parentNodeId, nodes, edges);
+      
+      const responseNodeId = uuidv4();
+      const responseNode: Node<NodeData> = {
+        id: responseNodeId,
+        type: 'custom',
+        position: { x: parentNode.position.x, y: parentNode.position.y + 250 }, // Position below the new user node
+        data: {
+          id: responseNodeId,
+          label: `Agent: ${prompt.substring(0, 40)}...`,
+          nodeType: 'AI_RESPONSE',
+          isLoading: true,
+          agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
+        }
+      };
+      
+      setNodes(nds => nds.concat(responseNode));
+      // Connect AI response to the now-permanent user query node
+      setEdges(eds => addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, eds));
+      
+      streamAgentResponse(parentNode, prompt, conversationHistory, {
+      onUpdate: (update: AgentUpdate) => {
+        updateNodeData(responseNodeId, (prevData) => {
+          const currentResponse = prevData.agentResponse!;
+          let newStages = [...currentResponse.stages];
+          let newThinkingStream = currentResponse.thinkingStream || '';
+          if (update.subtype === 'llm_chunk') {
+            newThinkingStream += (update as LlmChunk).content;
+          } else {
+            newThinkingStream = '';
+            // Only push if update is a valid AgentStage (e.g., subtype is not 'llm_chunk')
+            if (update.subtype !== 'llm_chunk') {
+              newStages.push(update as any); // If you have a type guard, use it here instead of 'as any'
+            }
+          }
+          return { ...prevData, agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream } };
+        });
+      },
+      onClose: () => updateNodeData(responseNodeId, d => ({ ...d, isLoading: false })),
+      onError: (error) => {
+          console.error("Streaming Error:", error);
+          updateNodeData(responseNodeId, d => ({ ...d, isLoading: false, label: `Error: ${d.label}` }));
+      }
+    });
+    };
+
+  // `handleCreateNode` for OmniBar is now much simpler
+  const handleCreateNode = useCallback((userPrompt: string) => {
+    // 1. Immediately trigger the AI request, treating the prompt as the first question.
+    // We create a "dummy" parent node just for the API call signature.
+    const dummyParent: Node<NodeData> = { id: 'root', data: {id: 'root', label: '', nodeType: 'USER_QUERY'}, position: {x:0, y:0}, type: 'custom' };
+    
+    const conversationHistory: Message[] = []; // History is empty for the first turn
+
+    const responseNodeId = uuidv4();
+    const userNodeId = uuidv4();
+    
+    // 2. Create BOTH the user's initial node and the AI's response node at the same time.
+    const userNode: Node<NodeData> = {
+        id: userNodeId,
+        type: 'custom',
+        position: { x: window.innerWidth / 2 - 350, y: 100 },
+        data: { id: userNodeId, label: userPrompt, nodeType: 'USER_QUERY' },
+    };
+    
+    const responseNode: Node<NodeData> = {
+      id: responseNodeId,
+      type: 'custom',
+      position: { x: userNode.position.x + 400, y: userNode.position.y },
+      data: {
+        id: responseNodeId,
+        label: `Agent: ${userPrompt.substring(0, 40)}...`,
+        nodeType: 'AI_RESPONSE',
+        isLoading: true,
+        agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
+      }
+    };
+    
+    // 3. Atomically add both nodes and the edge between them.
+    setNodes(nds => nds.concat([userNode, responseNode]));
+    setEdges(eds => addEdge({ id: `e-${userNode.id}-${responseNode.id}`, source: userNode.id, target: responseNode.id, animated: true }, eds));
+
+    // 4. Call the stream function
+    streamAgentResponse(dummyParent, userPrompt, conversationHistory, {
+        onUpdate: (update) => {
+            setNodes(nds => nds.map(n => {
+                if (n.id === responseNodeId) {
+                    const currentResponse = n.data.agentResponse!;
+                    let newStages = [...currentResponse.stages];
+                    let newThinkingStream = currentResponse.thinkingStream || '';
+                    if (update.subtype === 'llm_chunk') newThinkingStream += (update as LlmChunk).content;
+                    else { newThinkingStream = ''; newStages.push(update); }
+                    return { ...n, data: { ...n.data, agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }}};
+                }
+                return n;
+            }));
+        },
+        onClose: () => {
+            setNodes(nds => nds.map(n => {
+                if (n.id === responseNodeId) return { ...n, data: { ...n.data, isLoading: false }};
+                return n;
+            }));
+        },
+        onError: (error) => {
+            // ... handle error
+        }
+    });
+
+  }, []); 
 
   const handleFollowUpSubmit = useCallback((prompt: string, parentNode: Node<NodeData> | null) => {
     const isRoot = parentNode === null;
@@ -150,23 +302,7 @@ export default function FlowCanvas() {
     });
   }, [nodes, edges]);
 
-   const handleCreateNode = useCallback((userPrompt: string) => {
-    const userNodeId = uuidv4();
-    const userNode: Node<NodeData> = {
-      id: userNodeId,
-      type: 'custom',
-      position: { x: window.innerWidth / 2 - 350, y: 100 + nodes.length * 20 },
-      data: { id: userNodeId, label: userPrompt, onAgentClick: () => {} },
-    };
-    
-    // Atomically add the user node to the state
-    setNodes(nds => nds.concat(userNode));
-
-    // **CRITICAL FIX**: Pass the newly created `userNode` OBJECT directly to the handler.
-    // This bypasses the state update delay.
-    handleFollowUpSubmit(userPrompt, userNode);
-
-  }, [nodes, handleFollowUpSubmit]); 
+   
 
    const handleAttachedInputSubmit = useCallback((prompt: string, parentNodeId: string) => {
       const parentNode = nodes.find(n => n.id === parentNodeId);

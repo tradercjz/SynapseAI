@@ -60,6 +60,6 @@ export type MessageContent = string | AggregatedAiMessage;
 
 export interface Message {
   id: number;
-  sender: 'user' | 'ai';
+  sender: 'user' | 'assistant';
   content: MessageContent;
 }
