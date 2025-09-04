@@ -40,15 +40,17 @@ const SidebarToolbar: React.FC = () => {
       </Tooltip>
       
       {/* Placeholder for the next feature */}
-      <Tooltip title="User Space (Coming Soon)" placement="right">
-        <span>
-          <IconButton
-            disabled 
-            sx={{ color: 'grey.600' }}
-          >
-            <FolderIcon />
-          </IconButton>
-        </span>
+      <Tooltip title="User Space" placement="right">
+        <IconButton
+          onClick={() => handleToggle('USER_SPACE')}
+          sx={{
+            color: 'white',
+            bgcolor: activeTool === 'USER_SPACE' ? 'primary.main' : 'transparent',
+            '&:hover': { bgcolor: activeTool === 'USER_SPACE' ? 'primary.dark' : 'grey.800' },
+          }}
+        >
+          <FolderIcon />
+        </IconButton>
       </Tooltip>
     </Box>
   );

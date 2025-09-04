@@ -14,7 +14,7 @@ import CustomNode from './CustomNode';
 import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
 import { getLayoutedElements } from './utils/layout'; 
-import { DbSchema, useContextStore } from './store/contextStore';
+import { DbSchema, useContextStore, UserFile } from './store/contextStore';
 
 const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[], edges: Edge[]): Message[] => {
     const history: Message[] = [];
@@ -34,44 +34,50 @@ const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[],
     return history;
 };
 
-const buildInjectedContext = (schema: DbSchema | null, selectedTables: Record<string, boolean>): object | null => {
-  // If there's no schema or no tables selected, there's no context to inject.
-  if (!schema || Object.keys(selectedTables).length === 0) {
-    return null;
-  }
+const buildInjectedContext = (
+  schema: DbSchema | null, 
+  selectedTables: Record<string, boolean>,
+  associatedFiles: UserFile[]
+): object | null => {
+  
+  const contextParts: any = {};
+  let hasContent = false;
 
-  let markdown = "Schema for selected tables:\n";
-  const source_paths: string[] = [];
-
-  // Loop through all the tables the user has selected.
-  for (const tableKey in selectedTables) {
-    // Ensure the table is actually checked (value is true).
-    if (selectedTables[tableKey]) {
-      const [dbName, tableName] = tableKey.split('.');
-      
-      // Safely look up the table in the schema.
-      if (schema[dbName] && schema[dbName][tableName]) {
-        source_paths.push(tableKey);
-        const columns = schema[dbName][tableName];
-        
-        // Format the columns into a "col: type, col: type" string.
-        const columnsStr = columns.map(c => `${c.name}: ${c.type}`).join(', ');
-        
-        // Add the formatted table schema to our markdown string.
-        markdown += `- ${tableName}(${columnsStr})\n`;
+  // 1. Format Schema Context
+  if (schema && Object.values(selectedTables).some(v => v)) {
+    let markdown = "Schema for selected tables:\n";
+    const source_paths: string[] = [];
+    for (const tableKey in selectedTables) {
+      if (selectedTables[tableKey]) {
+        const [dbName, tableName] = tableKey.split('.');
+        if (schema[dbName] && schema[dbName][tableName]) {
+          source_paths.push(tableKey);
+          const columns = schema[dbName][tableName];
+          const columnsStr = columns.map(c => `${c.name}: ${c.type}`).join(', ');
+          markdown += `- ${tableName}(${columnsStr})\n`;
+        }
       }
     }
-  }
-  
-  // If, for some reason, no valid tables were found, return null.
-  if (source_paths.length === 0) {
-    return null;
+    if (source_paths.length > 0) {
+      contextParts.schemas = { markdown, source_paths };
+      hasContent = true;
+    }
   }
 
-  // Return the final object in the format the API expects.
-  return {
-    schemas: { markdown, source_paths }
-  };
+  // 2. Format File Context
+  const associatedFilesInjected = associatedFiles.filter(f => f.isAssociated && f.status === 'ready' && f.content);
+  if (associatedFilesInjected.length > 0) {
+    contextParts.files = {};
+    associatedFilesInjected.forEach(file => {
+      contextParts.files[file.name] = {
+        type: 'full_content',
+        content: file.content
+      };
+    });
+    hasContent = true;
+  }
+
+  return hasContent ? contextParts : null;
 };
 
 export default function FlowCanvas() {
@@ -121,7 +127,8 @@ export default function FlowCanvas() {
     setGraphState(currentGraph => {
       // Build history with the passed parentNode, using its ID.
       const conversationHistory = buildConversationHistory(parentNode.id, currentGraph.nodes, currentGraph.edges);
-      const injectedContext = buildInjectedContext(dbSchema, selectedTables);
+      const { userFiles } = useContextStore.getState();
+      const injectedContext = buildInjectedContext(dbSchema, selectedTables, userFiles);
 
       streamAgentResponse(parentNode, prompt, conversationHistory,injectedContext, {
         // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
@@ -287,8 +294,8 @@ export default function FlowCanvas() {
       edges: addEdge({ id: `e-${userNode.id}-${responseNode.id}`, source: userNode.id, target: responseNode.id, animated: true }, currentGraph.edges),
     }));
 
-    const { selectedEnvironment, dbSchema, selectedTables } = useContextStore.getState();
-    const injectedContext = buildInjectedContext(dbSchema, selectedTables);
+    const { selectedEnvironment, dbSchema, selectedTables, userFiles } = useContextStore.getState();
+    const injectedContext = buildInjectedContext(dbSchema, selectedTables, userFiles);
     // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
     streamAgentResponse(dummyParent, userPrompt, conversationHistory,injectedContext, {
       onUpdate: (update) => {

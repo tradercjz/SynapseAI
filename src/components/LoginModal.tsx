@@ -13,8 +13,8 @@ interface LoginModalProps {
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ open, onClose, onLoginSuccess }) => {
-  const [username, setUsername] = useState('user@example.com'); // 默认值方便测试
-  const [password, setPassword] = useState('string');       // 默认值方便测试
+  const [username, setUsername] = useState('admin'); // 默认值方便测试
+  const [password, setPassword] = useState('JZJZ112233');       // 默认值方便测试
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -217,3 +217,34 @@ body {
   box-shadow: 0 0 10px rgba(244, 67, 54, 0.3);
   transition: border-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out;
 }
+
+.file-list-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.dropzone {
+  border: 2px dashed #e0e0e0;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.dropzone:hover {
+  border-color: #2196f3; /* MUI primary blue */
+}
+
+.dropzone-active {
+  border-color: #2196f3;
+  background-color: #e3f2fd; /* A light blue */
+}
+
+.file-icon {
+  color: #757575; /* MUI grey */
+  margin-right: 16px;
+}
+
+.processing-spinner {
+  margin-right: 8px;
+}

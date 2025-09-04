@@ -6,6 +6,7 @@ import SidebarToolbar from './SidebarToolbar';
 import EnvironmentPanel from './EnvironmentPanel';
 import FlowCanvas from '../FlowCanvas'; // Note the path might be different depending on your folder structure
 import { useUIStore } from '../store/uiStore';
+import UserSpacePanel from './UserSpacePanel';
 
 const MainLayout: React.FC = () => {
   const { activeTool } = useUIStore();
@@ -18,6 +19,7 @@ const MainLayout: React.FC = () => {
       {/* 2. The conditionally rendered context panel */}
       {/* We use a simple boolean check. In the future, a switch statement could handle more tools. */}
       {activeTool === 'ENVIRONMENTS' && <EnvironmentPanel />}
+      {activeTool === 'USER_SPACE' && <UserSpacePanel />}
       
       {/* 3. The main content area which holds the FlowCanvas */}
       <Box sx={{ flex: 1, position: 'relative' }}>
