@@ -115,3 +115,49 @@ body {
   white-space: pre-wrap; /* Allows text to wrap */
   word-wrap: break-word;
 }
+
+
+/* 添加到 src/styles.css 文件末尾 */
+
+/* Agent Content Styles */
+.agent-content-container {
+  margin-top: 12px;
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.stage {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.stage.thought { border-color: #64b5f6; background-color: rgba(100, 181, 246, 0.08); }
+.stage.action { border-color: orange; background-color: rgba(255, 165, 0, 0.05); }
+.stage.observation { border-color: #81c784; background-color: rgba(129, 199, 132, 0.08); }
+.stage.observation.error { border-color: #e57373; background-color: rgba(229, 115, 115, 0.08); }
+.stage.end.success { border-color: #4caf50; background-color: rgba(76, 175, 80, 0.1); }
+.stage.end.error { border-color: #f44336; background-color: rgba(244, 67, 54, 0.1); }
+
+.thinking-stream {
+  font-style: italic;
+  color: #6c757d;
+}
+
+.blinking-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  from, to { color: transparent; }
+  50% { color: #6c757d; }
+}
+
+.loading-indicator {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: #007bff;
+}

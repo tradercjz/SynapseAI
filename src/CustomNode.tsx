@@ -2,22 +2,22 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 import type { NodeData } from './types';
+import AgentNodeContent from './AgentNodeContent'; // 引入新组件
 
 const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
   return (
-    // Add a class if the node has content, for potential future styling
-    <div className={`custom-node ${data.content ? 'has-content' : ''}`}>
+    <div className="custom-node">
       <Handle type="target" position={Position.Top} />
       
-      <div>
-        <div className="custom-node-label">{data.label}</div>
-        {/* ADDED: Conditionally render the content block */}
-        {data.content && (
-          <pre className="custom-node-content">{data.content}</pre>
-        )}
-      </div>
+      <div className="custom-node-label">{data.label}</div>
+      
+      {/* 如果有 agentResponse，则渲染它 */}
+      {data.agentResponse && <AgentNodeContent content={data.agentResponse} />}
 
-      {selected && (
+      {/* 如果正在加载，显示一个提示 */}
+      {data.isLoading && <div className="loading-indicator">Agent is working...</div>}
+      
+      {selected && !data.isLoading && (
         <button 
           className="agent-button" 
           onClick={() => data.onAgentClick(data.id, data.label)}
