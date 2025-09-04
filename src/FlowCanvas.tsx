@@ -1,5 +1,5 @@
 // src/FlowCanvas.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import ReactFlow, {
   Controls, Background, applyNodeChanges, applyEdgeChanges, addEdge,
   Node, Edge, NodeChange, EdgeChange, Connection,
@@ -16,6 +16,7 @@ import { streamAgentResponse } from './agentService';
 import AttachedInput from './components/AttachedInput';
 import InputNode from './components/InputNode';
 import { Message } from './agent';
+import { getLayoutedElements } from './utils/layout'; 
 
 const initialNodes: Node<NodeData>[] = [];
 
@@ -50,11 +51,25 @@ export default function FlowCanvas() {
   const [activeInputNodeId, setActiveInputNodeId] = useState<string | null>(null);
   const reactFlowInstance = useReactFlow(); // 获取 React Flow 实例
 
-  const nodeTypes = useMemo(() => ({ custom: CustomNode, input: InputNode }), []);
+  const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)), []);
   const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
   const onConnect = useCallback((connection: Connection) => setEdges((eds) => addEdge(connection, eds)), []);
+
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const layoutedNodes = getLayoutedElements(nodes, edges);
+      setNodes(layoutedNodes);
+      
+      setTimeout(() => {
+        const targetNode = nodes[nodes.length -1];
+        if (targetNode) {
+          reactFlowInstance.fitView({ padding: 0.2, duration: 800, nodes: [{id: targetNode.id}] });
+        }
+      }, 100);
+    }
+  }, [nodes.length, edges.length, reactFlowInstance]);
 
   const updateNodeData = (nodeId: string, dataUpdater: (prevData: NodeData) => NodeData) => {
     setNodes(nds => nds.map(node => {
@@ -65,30 +80,25 @@ export default function FlowCanvas() {
     }));
   };
   
-  const onNodeClick = useCallback((event: React.MouseEvent, parentNode: Node<NodeData>) => {
-    // Prevent creating an input node from another active input node
-    if (parentNode.type === 'input') return;
+   const onNodeClick = useCallback((event: React.MouseEvent, parentNode: Node<NodeData>) => {
+      if (nodes.some(n => n.data.nodeType === 'INPUT')) return;
 
-    // Prevent creating multiple input nodes
-    if (nodes.some(n => n.type === 'input')) return;
-
-    const inputNodeId = uuidv4();
-    const inputNode: Node<NodeData> = {
-      id: inputNodeId,
-      type: 'input',
-      position: { x: parentNode.position.x, y: parentNode.position.y + (parentNode.height || 100) + 60 },
-      data: {
+      const inputNodeId = uuidv4();
+      const inputNode: Node<NodeData> = {
         id: inputNodeId,
-        label: '', // Input node doesn't need a label
-        nodeType: 'INPUT',
-        onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, parentNode.id),
-      }
-    };
+        type: 'custom', // It's a standard node from the start
+        position: { x: 0, y: 0 }, // Position will be handled by Dagre
+        data: {
+          id: inputNodeId,
+          label: '',
+          nodeType: 'INPUT', // The type in data determines its appearance
+          onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, parentNode.id),
+        }
+      };
 
-    setNodes(nds => nds.concat(inputNode));
-    setEdges(eds => addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, eds));
-
-  }, [nodes]);
+      setNodes(nds => nds.concat(inputNode));
+      setEdges(eds => addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, eds));
+    }, [nodes]);
 
     const onPaneClick = useCallback(() => {
       setActiveInputNodeId(null);
@@ -97,47 +107,37 @@ export default function FlowCanvas() {
   // --- 核心修改在这里 ---
  
   const handleInputSubmit = (prompt: string, inputNodeId: string, parentNodeId: string) => {
-      // 1. Transform the Input Node into a permanent User Query Node
-      setNodes(nds => nds.map(n => {
-        if (n.id === inputNodeId) {
-          return {
-            ...n,
-            type: 'custom', // Change type to a standard node
-            data: {
-              ...n.data,
-              label: prompt,
-              nodeType: 'USER_QUERY',
-            }
-          };
-        }
-        return n;
-      }));
+    // 1. Solidify the Input Node
+    setNodes(nds => nds.map(n => 
+      n.id === inputNodeId 
+        ? { ...n, data: { ...n.data, label: prompt, nodeType: 'USER_QUERY' } } 
+        : n
+    ));
 
-      // 2. Build context and call the AI
-      const parentNode = nodes.find(n => n.id === parentNodeId);
-      if (!parentNode) return;
+    // 2. Create AI Response
+    const parentNode = nodes.find(n => n.id === parentNodeId);
+    if (!parentNode) return;
 
-      const conversationHistory = buildConversationHistory(parentNodeId, nodes, edges);
-      
-      const responseNodeId = uuidv4();
-      const responseNode: Node<NodeData> = {
+    const conversationHistory = buildConversationHistory(parentNodeId, nodes, edges);
+    
+    const responseNodeId = uuidv4();
+    const responseNode: Node<NodeData> = {
+      id: responseNodeId,
+      type: 'custom',
+      position: { x: 0, y: 0 }, // Position will be determined by layout
+      data: {
         id: responseNodeId,
-        type: 'custom',
-        position: { x: parentNode.position.x, y: parentNode.position.y + 250 }, // Position below the new user node
-        data: {
-          id: responseNodeId,
-          label: `Agent: ${prompt.substring(0, 40)}...`,
-          nodeType: 'AI_RESPONSE',
-          isLoading: true,
-          agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
-        }
-      };
-      
-      setNodes(nds => nds.concat(responseNode));
-      // Connect AI response to the now-permanent user query node
-      setEdges(eds => addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, eds));
-      
-      streamAgentResponse(parentNode, prompt, conversationHistory, {
+        label: `Agent: ${prompt.substring(0, 40)}...`,
+        nodeType: 'AI_RESPONSE',
+        isLoading: true,
+        agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
+      }
+    };
+    
+    setNodes(nds => nds.concat(responseNode));
+    setEdges(eds => addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, eds));
+    
+    streamAgentResponse(parentNode, prompt, conversationHistory, {
       onUpdate: (update: AgentUpdate) => {
         updateNodeData(responseNodeId, (prevData) => {
           const currentResponse = prevData.agentResponse!;
