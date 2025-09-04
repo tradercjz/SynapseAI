@@ -44,18 +44,27 @@ export default function FlowCanvas() {
   const onConnect = useCallback((connection: Connection) => setGraphState(g => ({ ...g, edges: addEdge(connection, g.edges) })), []);
 
   useEffect(() => {
-    if (nodes.length > 0) {
+    // Only layout if there are nodes and no active input node.
+    // This prevents re-layouting while the user is about to type.
+    if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
       const layoutedNodes = getLayoutedElements(nodes, edges);
       setGraphState(currentGraph => ({ ...currentGraph, nodes: layoutedNodes }));
-      
-      setTimeout(() => {
-        const lastNode = nodes[nodes.length - 1];
-        if (lastNode) {
-          reactFlowInstance.fitView({ padding: 0.2, duration: 800, nodes: [{id: lastNode.id}] });
-        }
-      }, 150);
     }
-  }, [nodes.length, edges.length, reactFlowInstance]);
+
+    // --- Focus Logic ---
+    const activeInputNode = nodes.find(n => n.data.nodeType === 'INPUT');
+    const targetNode = activeInputNode || nodes[nodes.length - 1];
+
+    if (targetNode) {
+      setTimeout(() => {
+        reactFlowInstance.fitView({ 
+          padding: 0.2, 
+          duration: 500, // Slightly faster animation
+          nodes: [{id: targetNode.id}] 
+        });
+      }, 100);
+    }
+  }, [nodes.length, edges.length, reactFlowInstance]); 
 
   const handleInputSubmit = useCallback((prompt: string, inputNodeId: string, parentNode: Node<NodeData>) => {
     const responseNodeId = uuidv4();
@@ -161,21 +170,51 @@ export default function FlowCanvas() {
   }, []);
 
   const onNodeClick = useCallback((event: React.MouseEvent, parentNode: Node<NodeData>) => {
+    if (parentNode.data.nodeType === 'INPUT') {
+      return;
+    }
+
     setGraphState(currentGraph => {
-      if (currentGraph.nodes.some(n => n.data.nodeType === 'INPUT')) {
-        return currentGraph;
+      const existingInputNode = currentGraph.nodes.find(n => n.data.nodeType === 'INPUT');
+
+      if (existingInputNode && currentGraph.edges.some(e => e.source === parentNode.id && e.target === existingInputNode.id)) {
+        return {
+          nodes: currentGraph.nodes.filter(n => n.id !== existingInputNode.id),
+          edges: currentGraph.edges.filter(e => e.target !== existingInputNode.id),
+        };
       }
+
+      const nodesWithoutOldInput = existingInputNode 
+        ? currentGraph.nodes.filter(n => n.id !== existingInputNode.id) 
+        : currentGraph.nodes;
+      const edgesWithoutOldInput = existingInputNode 
+        ? currentGraph.edges.filter(e => e.target !== existingInputNode.id) 
+        : currentGraph.edges;
+
       const inputNodeId = uuidv4();
+      
+      // CRITICAL FIX: Calculate the position IMMEDIATELY.
+      // We use parentNode's actual rendered position and dimensions.
+      const newNodePosition = {
+        x: parentNode.position.x,
+        y: parentNode.position.y + (parentNode.height || 150) + 20, // Add a small gap
+      };
+
       const inputNode: Node<NodeData> = {
-        id: inputNodeId, type: 'custom', position: { x: 0, y: 0 },
+        id: inputNodeId,
+        type: 'custom',
+        position: newNodePosition, // Use the calculated position
         data: {
-          id: inputNodeId, label: '', nodeType: 'INPUT',
+          id: inputNodeId,
+          label: '',
+          nodeType: 'INPUT',
           onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, parentNode),
         }
       };
+
       return {
-        nodes: currentGraph.nodes.concat(inputNode),
-        edges: addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, currentGraph.edges),
+        nodes: nodesWithoutOldInput.concat(inputNode),
+        edges: addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, edgesWithoutOldInput),
       };
     });
   }, [handleInputSubmit]);
