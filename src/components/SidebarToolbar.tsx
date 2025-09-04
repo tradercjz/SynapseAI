@@ -1,7 +1,7 @@
 // src/components/SidebarToolbar.tsx
 import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
-import { CloudQueue as CloudQueueIcon, Folder as FolderIcon } from '@mui/icons-material';
+import { CloudQueue as CloudQueueIcon, Folder as FolderIcon, Storefront as StorefrontIcon } from '@mui/icons-material';
 import { useUIStore, ActiveTool } from '../store/uiStore';
 
 const SidebarToolbar: React.FC = () => {
@@ -51,6 +51,18 @@ const SidebarToolbar: React.FC = () => {
         >
           <FolderIcon />
         </IconButton>
+      </Tooltip>
+
+      <Tooltip title="MCP App Marketplace (Coming Soon)" placement="right">
+        {/* The span wrapper ensures the tooltip works even on a disabled button */}
+        <span>
+          <IconButton
+            disabled 
+            sx={{ color: 'grey.600' }} // A muted color for disabled icons
+          >
+            <StorefrontIcon />
+          </IconButton>
+        </span>
       </Tooltip>
     </Box>
   );

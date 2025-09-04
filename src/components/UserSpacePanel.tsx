@@ -1,8 +1,8 @@
 // src/components/UserSpacePanel.tsx
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Box, Typography, List, ListItem, ListItemText, IconButton, CircularProgress, Chip, Switch, FormControlLabel } from '@mui/material';
-import { Delete as DeleteIcon, Description as FileIcon, CheckCircle as CheckCircleIcon, Error as ErrorIcon } from '@mui/icons-material';
+import { Box, Typography, List, ListItem, ListItemText, IconButton, CircularProgress, Chip, Switch, FormControlLabel, Tooltip } from '@mui/material';
+import { Delete as DeleteIcon, Description as FileIcon, CheckCircle as CheckCircleIcon, Error as ErrorIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
 import { useContextStore, UserFile } from '../store/contextStore';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 
@@ -19,8 +19,11 @@ const UserSpacePanel: React.FC = () => {
       const fileId = `${file.name}-${Date.now()}`;
       
       // Add a file placeholder to the store immediately for instant UI feedback
-      addFileToStore({ id: fileId, name: file.name, type: file.type, content: null, status: 'processing', isAssociated: false });
-      
+      let blobUrl: string | undefined = undefined;
+      if (file.type === 'application/pdf') {
+        blobUrl = URL.createObjectURL(file);
+      }
+      addFileToStore({ id: fileId, name: file.name, type: file.type, status: 'processing', blobUrl });
       try {
         let textContent = '';
         if (file.type === 'application/pdf') {
@@ -80,33 +83,47 @@ const UserSpacePanel: React.FC = () => {
                 key={file.id}
                 className="file-list-item"
                 secondaryAction={
-                  <IconButton edge="end" aria-label="delete" onClick={() => removeFile(file.id)}>
-                    <DeleteIcon />
-                  </IconButton>
+                  // --- THIS IS THE NEW ACTION GROUP ---
+                  <Box>
+                    {/* View Button (only for ready PDFs) */}
+                    <Tooltip title="View PDF">
+                      <span>
+                        <IconButton
+                          edge="end"
+                          aria-label="view"
+                          disabled={file.type !== 'application/pdf' || file.status !== 'ready'}
+                          onClick={() => { if (file.blobUrl) window.open(file.blobUrl, '_blank') }}
+                          sx={{ mr: 0.5 }} // Add margin
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    {/* Delete Button */}
+                    <Tooltip title="Delete File">
+                      <IconButton edge="end" aria-label="delete" onClick={() => removeFile(file.id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 }
                 sx={{ alignItems: 'flex-start' }}
               >
+                {/* ... The rest of the ListItem (icon, text, associate switch) remains the same ... */}
                 <Box sx={{ mr: 1.5, mt: 1.5 }}>
                   {getStatusIcon(file.status)}
                 </Box>
                 <ListItemText
-                  primary={file.name}
-                  primaryTypographyProps={{ noWrap: true, fontWeight: 500 }}
-                  secondary={
-                    <FormControlLabel 
-                      control={
-                        <Switch 
-                          size="small"
-                          checked={file.isAssociated}
-                          onChange={() => toggleFileAssociation(file.id)}
-                          disabled={file.status !== 'ready'}
+                    primary={file.name}
+                    primaryTypographyProps={{ noWrap: true, fontWeight: 500 }}
+                    secondary={
+                        <FormControlLabel 
+                            control={ <Switch /* ... */ /> }
+                            label={<Typography variant="caption">Associate</Typography>}
+                            sx={{ ml: -1, mt: 0.5 }}
                         />
-                      }
-                      label={<Typography variant="caption">Associate</Typography>}
-                      sx={{ ml: -1, mt: 0.5 }} // Negative margin to align with text
-                    />
-                  }
-                  secondaryTypographyProps={{component: 'div'}}
+                    }
+                    secondaryTypographyProps={{component: 'div'}}
                 />
               </ListItem>
           )) 

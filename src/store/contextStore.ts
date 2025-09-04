@@ -24,6 +24,8 @@ export interface UserFile {
   content: string | null; // The extracted plain text content
   status: 'pending' | 'processing' | 'ready' | 'error';
   isAssociated: boolean; // Is this file currently active as context?
+
+  blobUrl?: string; 
 }
 
 interface ContextState {
@@ -38,7 +40,7 @@ interface ContextState {
   toggleTableSelection: (tableKey: string) => void;
   clearSelections: () => void;
 
-  addFile: (fileData: Omit<UserFile, 'content' | 'isAssociated'>) => void; // This will trigger the processing
+  addFile: (fileData: Omit<UserFile, 'content' | 'isAssociated'> & { blobUrl?: string }) => void; // This will trigger the processing
   updateFileStatus: (id: string, status: UserFile['status'], content?: string) => void;
   toggleFileAssociation: (id:string) => void;
   removeFile: (id: string) => void;
@@ -69,11 +71,11 @@ export const useContextStore = create<ContextState>((set) => ({
 
   clearSelections: () => set({ selectedTables: {} }),
 
-  addFile: (fileData: Omit<UserFile, 'content' | 'isAssociated'>) => {
+   addFile: (fileData) => {
     const newFile: UserFile = {
       ...fileData,
-      content: null, // Default content
-      isAssociated: false, // Default association
+      content: null,
+      isAssociated: false,
     };
     set(state => ({ userFiles: [...state.userFiles, newFile] }));
   },

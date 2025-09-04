@@ -2,7 +2,7 @@
 import {create} from 'zustand';
 
 // Defines the possible tools that can be active in the sidebar.
-export type ActiveTool = 'ENVIRONMENTS' | 'USER_SPACE' | null;
+export type ActiveTool = 'ENVIRONMENTS' | 'USER_SPACE' | 'MARKETPLACE' | null;
 
 interface UIState {
   activeTool: ActiveTool;
