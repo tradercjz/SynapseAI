@@ -63,11 +63,17 @@ export default function FlowCanvas() {
       setNodes(layoutedNodes);
       
       setTimeout(() => {
-        const targetNode = nodes[nodes.length -1];
-        if (targetNode) {
-          reactFlowInstance.fitView({ padding: 0.2, duration: 800, nodes: [{id: targetNode.id}] });
+        // Focus logic: find the node with the highest Y value (the latest one)
+        const lastNode = nodes.reduce((prev, current) => (prev.position.y > current.position.y) ? prev : current, nodes[0]);
+        
+        if (lastNode) {
+          reactFlowInstance.fitView({ 
+            padding: 0.2, 
+            duration: 800, 
+            nodes: [{id: lastNode.id}] 
+          });
         }
-      }, 100);
+      }, 150); // Increased timeout slightly for smoother rendering
     }
   }, [nodes.length, edges.length, reactFlowInstance]);
 
