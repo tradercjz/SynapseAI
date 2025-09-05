@@ -23,16 +23,14 @@ export default function OmniBar({ onCreateNode }: OmniBarProps) {
     }
   };
   
-  const placeholderText = selectedEnvironment
-    ? `Ask a question...`
-    : 'Select an environment to begin';
+  const placeholderText = `Ask a question...`;
 
   return (
     <Paper
       elevation={4}
       sx={{
         position: 'absolute',
-        top: 20,
+        bottom: 30,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10,
@@ -63,7 +61,6 @@ export default function OmniBar({ onCreateNode }: OmniBarProps) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        disabled={!selectedEnvironment}
         InputProps={{
           disableUnderline: true,
           sx: { fontSize: '1.1rem' }

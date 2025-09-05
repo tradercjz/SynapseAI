@@ -28,7 +28,7 @@ const ContextDisplayBar: React.FC = () => {
       elevation={2}
       sx={{
         position: 'absolute',
-        top: 85, // Position it below the OmniBar
+        bottom: 90, 
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9, // Just below the OmniBar
@@ -37,8 +37,8 @@ const ContextDisplayBar: React.FC = () => {
         alignItems: 'center',
         gap: 1,
         borderRadius: '8px',
-        maxWidth: '60%',
-        overflowX: 'auto', // Allow horizontal scrolling if many items
+        maxWidth: '70%',
+        flexWrap: 'wrap',  
         bgcolor: 'grey.100',
       }}
     >
