@@ -1,5 +1,5 @@
 // src/FlowCanvas.tsx
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import ReactFlow, {
   Controls, Background, applyNodeChanges, applyEdgeChanges, addEdge,
   Node, Edge, NodeChange, EdgeChange, Connection,
@@ -93,6 +93,39 @@ export default function FlowCanvas() {
   const reactFlowInstance = useReactFlow();
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
+  const stageLengthsRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    const streamingNode = nodes.find(n => n.data.isLoading);
+
+    if (streamingNode) {
+      const nodeId = streamingNode.id;
+      const currentStagesLength = streamingNode.data.agentResponse?.stages.length || 0;
+      const prevStagesLength = stageLengthsRef.current[nodeId] || 0;
+
+      // 2. 只有当 stage 数量增加时，才触发聚焦
+      if (currentStagesLength > prevStagesLength) {
+        setTimeout(() => {
+          reactFlowInstance.fitView({
+            nodes: [{ id: nodeId }],
+            duration: 400,
+            padding: 0.2,
+          });
+        }, 150); // 延迟以确保节点尺寸已更新
+      }
+      
+      // 3. 更新 ref 以供下次比较
+      stageLengthsRef.current[nodeId] = currentStagesLength;
+    }
+
+  // 4. 依赖项：我们监听 nodes 数组本身，以便能够深入比较其内容
+  }, [nodes, reactFlowInstance]);
+
+  // 当工作区切换时，清空 ref
+  useEffect(() => {
+    stageLengthsRef.current = {};
+  }, [activeWorkspaceId]);
+
   const updateGraph = actions.updateActiveWorkspaceGraph;
 
   const onNodesChange = useCallback((changes: NodeChange[]) => updateGraph({ nodes: applyNodeChanges(changes, nodes), edges }), [nodes, edges, updateGraph]);
@@ -151,6 +184,9 @@ export default function FlowCanvas() {
       streamAgentResponse(parentNode, prompt, conversationHistory,injectedContext, {
         // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
         onUpdate: (update) => {
+          // 定义一个列表，包含所有我们希望在UI中作为独立“阶段”显示的子类型
+          const displayableSubtypes = ['react_thought', 'react_action', 'react_observation', 'end'];
+
           performUpdate(g => ({
             ...g,
             nodes: g.nodes.map(n => {
@@ -158,16 +194,28 @@ export default function FlowCanvas() {
                 const currentResponse = n.data.agentResponse!;
                 let newStages = [...currentResponse.stages];
                 let newThinkingStream = currentResponse.thinkingStream || '';
+
+                let newStatusMessage = n.data.currentStatusMessage;
+
                 if (update.subtype === 'llm_chunk') {
                   newThinkingStream += (update as LlmChunk).content;
-                } else {
-                  newThinkingStream = '';
+                  newStatusMessage = "AI is thinking..."; // 当思考时，也给一个状态
+                } 
+                else if (displayableSubtypes.includes(update.subtype)) {
+                  newThinkingStream = ''; 
                   newStages.push(update);
+                  newStatusMessage = undefined; // 当有实际阶段显示时，清除临时状态消息
                 }
+                // 这就是捕获所有其他事件的地方！
+                else {
+                  newStatusMessage = update.message; // 更新状态消息为 RAG 等事件的消息
+                }
+
                 return {
                   ...n,
                   data: {
                     ...n.data,
+                    currentStatusMessage: newStatusMessage, 
                     agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }
                   }
                 };
@@ -189,7 +237,7 @@ export default function FlowCanvas() {
                 } else if (lastStage && lastStage.type === 'error') {
                   finalStatus = 'error';
                 }
-                return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus } };
+                return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus, currentStatusMessage: undefined } };
               }
               return n;
             })
@@ -207,7 +255,8 @@ export default function FlowCanvas() {
                     ...n.data,
                     isLoading: false,
                     taskStatus: 'error',
-                    label: `Error: ${n.data.label}`
+                    label: `Error: ${n.data.label}`,
+                    currentStatusMessage: undefined 
                   }
                 };
               }
@@ -345,6 +394,9 @@ export default function FlowCanvas() {
     // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
     streamAgentResponse(dummyParent, userPrompt, conversationHistory,injectedContext, {
       onUpdate: (update) => {
+        // 定义一个列表，包含所有我们希望在UI中作为独立“阶段”显示的子类型
+        const displayableSubtypes = ['react_thought', 'react_action', 'react_observation', 'end'];
+
         performUpdate(g => ({
           ...g,
           nodes: g.nodes.map(n => {
@@ -352,17 +404,28 @@ export default function FlowCanvas() {
               const currentResponse = n.data.agentResponse!;
               let newStages = [...currentResponse.stages];
               let newThinkingStream = currentResponse.thinkingStream || '';
+
+              let newStatusMessage = n.data.currentStatusMessage;
+
               if (update.subtype === 'llm_chunk') {
                 newThinkingStream += (update as LlmChunk).content;
-              } else {
-                newThinkingStream = '';
+                newStatusMessage = "AI is thinking..."; // 当思考时，也给一个状态
+              } 
+              else if (displayableSubtypes.includes(update.subtype)) {
+                newThinkingStream = ''; 
                 newStages.push(update);
+                newStatusMessage = undefined; // 当有实际阶段显示时，清除临时状态消息
               }
+              // 这就是捕获所有其他事件的地方！
+              else {
+                newStatusMessage = update.message; // 更新状态消息为 RAG 等事件的消息
+              }
+
               return {
                 ...n,
                 data: {
                   ...n.data,
-                  agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }
+                  agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream,  currentStatusMessage: newStatusMessage}
                 }
               };
             }
@@ -383,7 +446,7 @@ export default function FlowCanvas() {
               } else if (lastStage && lastStage.type === 'error') {
                 finalStatus = 'error';
               }
-              return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus } };
+              return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus,currentStatusMessage: undefined } };
             }
             return n;
           })
@@ -401,7 +464,8 @@ export default function FlowCanvas() {
                   ...n.data,
                   isLoading: false,
                   taskStatus: 'error',
-                  label: `Error: ${n.data.label}`
+                  label: `Error: ${n.data.label}`,
+                  currentStatusMessage: undefined
                 }
               };
             }

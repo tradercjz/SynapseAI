@@ -250,3 +250,28 @@ body {
 .processing-spinner {
   margin-right: 8px;
 }
+
+
+.status-indicator {
+  margin-top: 12px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #6c757d; /* A muted grey color */
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+  text-align: left;
+}
+
+.pulsing-ellipsis::after {
+  content: '.';
+  animation: ellipsis-pulse 1.4s infinite;
+  animation-delay: 0s;
+}
+
+@keyframes ellipsis-pulse {
+  0% { content: '.'; }
+  33% { content: '..'; }
+  66% { content: '...'; }
+  100% { content: '.'; }
+}

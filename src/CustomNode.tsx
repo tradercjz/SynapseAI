@@ -1,7 +1,7 @@
 // src/CustomNode.tsx
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { Paper, TextField } from '@mui/material';
+import { Box, Paper, TextField } from '@mui/material';
 import type { NodeData } from './types';
 import AgentNodeContent from './AgentNodeContent';
 import classNames from 'classnames'; 
@@ -69,8 +69,19 @@ const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, id }) => {
       
       <div className="custom-node-label">{data.label}</div>
       
-      {isAI && data.agentResponse && <AgentNodeContent content={data.agentResponse} />}
-      {isAI && data.isLoading && <div className="loading-indicator">Agent is working...</div>}
+       {isAI && data.agentResponse && (
+        // 1. 添加一个 Box 来包裹 AgentNodeContent
+        // 2. 在这个 Box 上添加 onClick 事件处理器
+        <Box onClick={(event) => event.stopPropagation()}>
+          <AgentNodeContent content={data.agentResponse} />
+        </Box>
+      )}
+      {isAI && data.isLoading && (
+        <div className="status-indicator">
+          {data.currentStatusMessage || 'Agent is working...'}
+          <span className="pulsing-ellipsis"></span>
+        </div>
+      )}
       
       <Handle type="source" position={Position.Bottom} />
     </div>
