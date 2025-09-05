@@ -114,17 +114,27 @@ const UserSpacePanel: React.FC = () => {
                   {getStatusIcon(file.status)}
                 </Box>
                 <ListItemText
-                    primary={file.name}
-                    primaryTypographyProps={{ noWrap: true, fontWeight: 500 }}
-                    secondary={
-                        <FormControlLabel 
-                            control={ <Switch /* ... */ /> }
-                            label={<Typography variant="caption">Associate</Typography>}
-                            sx={{ ml: -1, mt: 0.5 }}
-                        />
-                    }
-                    secondaryTypographyProps={{component: 'div'}}
-                />
+                  primary={file.name}
+                  primaryTypographyProps={{ noWrap: true, fontWeight: 500 }}
+                  secondary={
+                      <FormControlLabel
+                          // 当文件状态不是 'ready' 时，禁用整个控件
+                          disabled={file.status !== 'ready'}
+                          control={
+                              <Switch
+                                  // 绑定 checked 状态，由 store 中的 isAssociated 决定
+                                  checked={file.isAssociated}
+                                  // 绑定 onChange 事件，点击时调用 store 中的 action
+                                  onChange={() => toggleFileAssociation(file.id)}
+                                  size="small"
+                              />
+                          }
+                          label={<Typography variant="caption">Associate</Typography>}
+                          sx={{ ml: -1, mt: 0.5 }}
+                      />
+                  }
+                  secondaryTypographyProps={{ component: 'div' }}
+              />
               </ListItem>
           )) 
           : <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>Your user space is empty.</Typography>

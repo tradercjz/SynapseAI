@@ -15,6 +15,8 @@ import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
 import { getLayoutedElements } from './utils/layout'; 
 import { DbSchema, useContextStore, UserFile } from './store/contextStore';
+import ContextDisplayBar from './components/ContextDisplayBar';
+import { isEqual } from 'lodash';
 
 const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[], edges: Edge[]): Message[] => {
     const history: Message[] = [];
@@ -91,28 +93,35 @@ export default function FlowCanvas() {
   const onConnect = useCallback((connection: Connection) => setGraphState(g => ({ ...g, edges: addEdge(connection, g.edges) })), []);
 
   useEffect(() => {
-    // Only layout if there are nodes and no active input node.
-    // This prevents re-layouting while the user is about to type.
+    // Only run layouting if there are nodes and no input is active.
     if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
       const layoutedNodes = getLayoutedElements(nodes, edges);
-      setGraphState(currentGraph => ({ ...currentGraph, nodes: layoutedNodes }));
-    }
 
-    // --- Focus Logic ---
+      // CRITICAL FIX: We compare the old positions with the new positions.
+      // We only call setGraphState IF they are different. This breaks the loop.
+      const currentPositions = nodes.map(n => ({ id: n.id, ...n.position }));
+      const newPositions = layoutedNodes.map(n => ({ id: n.id, ...n.position }));
+
+      // Using a reliable deep comparison library is the key.
+      if (!isEqual(currentPositions, newPositions)) {
+        console.log("Layout changed, applying new positions."); // For debugging
+        setGraphState(currentGraph => ({ ...currentGraph, nodes: layoutedNodes }));
+      }
+    }
+  }, [nodes, edges]); // Depend on the full arrays
+
+  // This separate useEffect for focusing is correct.
+  useEffect(() => {
+    if (nodes.length === 0) return;
     const activeInputNode = nodes.find(n => n.data.nodeType === 'INPUT');
     const targetNode = activeInputNode || nodes[nodes.length - 1];
-
     if (targetNode) {
       setTimeout(() => {
-        reactFlowInstance.fitView({ 
-          padding: 0.2, 
-          duration: 500, // Slightly faster animation
-          nodes: [{id: targetNode.id}] 
-        });
+        reactFlowInstance.fitView({ padding: 0.2, duration: 500, nodes: [{id: targetNode.id}] });
       }, 100);
     }
-  }, [nodes.length, edges.length, reactFlowInstance]); 
-
+  }, [nodes.length, reactFlowInstance]);
+  
   const handleInputSubmit = useCallback((prompt: string, inputNodeId: string, parentNode: Node<NodeData>) => {
     const responseNodeId = uuidv4();
 
@@ -369,6 +378,7 @@ export default function FlowCanvas() {
   return (
     <div className="flow-canvas" style={{width: '100%', height: '100%'}}>
       <OmniBar onCreateNode={handleCreateNode} />
+      <ContextDisplayBar />
       <ReactFlow
         nodes={nodes}
         edges={edges}
