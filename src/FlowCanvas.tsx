@@ -13,7 +13,7 @@ import { AgentUpdate, LlmChunk, Message, TaskEnd } from './agent';
 import CustomNode from './CustomNode';
 import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
-import { getLayoutedElements } from './utils/layout'; 
+import { getLayoutedElements, nodeWidth, HORIZONTAL_GAP } from './utils/layout'; 
 import { DbSchema, useContextStore, UserFile } from './store/contextStore';
 import { useWorkspaceStore } from './store/workspaceStore';
 import ContextDisplayBar from './components/ContextDisplayBar';
@@ -99,19 +99,19 @@ export default function FlowCanvas() {
   const onEdgesChange = useCallback((changes: EdgeChange[]) => updateGraph({ nodes, edges: applyEdgeChanges(changes, edges) }), [nodes, edges, updateGraph]);
   const onConnect = useCallback((connection: Connection) => updateGraph({ nodes, edges: addEdge(connection, edges) }), [nodes, edges, updateGraph]);
   
-  useEffect(() => {
-    // Only run layouting if there are nodes and no input is active.
-    if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
-      const layoutedNodes = getLayoutedElements(nodes, edges);
-      const currentPositions = nodes.map(n => ({ id: n.id, ...n.position }));
-      const newPositions = layoutedNodes.map(n => ({ id: n.id, ...n.position }));
+  // useEffect(() => {
+  //   // Only run layouting if there are nodes and no input is active.
+  //   if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
+  //     const layoutedNodes = getLayoutedElements(nodes, edges);
+  //     const currentPositions = nodes.map(n => ({ id: n.id, ...n.position }));
+  //     const newPositions = layoutedNodes.map(n => ({ id: n.id, ...n.position }));
 
-      if (!isEqual(currentPositions, newPositions)) {
-        console.log("Layout changed, applying new positions.");
-        updateGraph({ nodes: layoutedNodes, edges });
-      }
-    }
-  }, [nodes.length, edges.length]);
+  //     if (!isEqual(currentPositions, newPositions)) {
+  //       console.log("Layout changed, applying new positions.");
+  //       updateGraph({ nodes: layoutedNodes, edges });
+  //     }
+  //   }
+  // }, [nodes.length, edges.length]);
 
   // This separate useEffect for focusing is correct.
   useEffect(() => {
@@ -293,6 +293,24 @@ export default function FlowCanvas() {
   }, [handleInputSubmit, updateGraph]);
 
   const handleCreateNode = useCallback((userPrompt: string) => {
+    // 1. 从 store 中获取当前工作区的最新节点列表
+    const currentNodes = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!].nodes;
+
+    // 2. 计算新节点的起始 X 坐标
+    let startX = 0;
+    if (currentNodes && currentNodes.length > 0) {
+      // 找到所有节点中最靠右的 X 坐标
+      const rightmostX = currentNodes.reduce(
+        (max, node) => Math.max(max, node.position.x),
+        -Infinity
+      );
+      // 在最右侧节点的基础上，加上一个节点的宽度和一个额外的间隙
+      startX = rightmostX + nodeWidth + HORIZONTAL_GAP;
+    }
+
+    const startY = 0; // 新对话流从顶部开始
+    const verticalGap = 200; // 节点之间的垂直间距
+    
     const dummyParent: Node<NodeData> = { id: 'root', data: {id: 'root', label: '', nodeType: 'USER_QUERY'}, position: {x:0, y:0}, type: 'custom' };
     const conversationHistory: Message[] = [];
     const responseNodeId = uuidv4();
@@ -305,11 +323,11 @@ export default function FlowCanvas() {
       };
     
     const userNode: Node<NodeData> = {
-        id: userNodeId, type: 'custom', position: { x: 0, y: 0 },
+        id: userNodeId, type: 'custom',  position: { x: startX, y: startY },
         data: { id: userNodeId, label: userPrompt, nodeType: 'USER_QUERY' },
     };
     const responseNode: Node<NodeData> = {
-      id: responseNodeId, type: 'custom', position: { x: 0, y: 0 },
+      id: responseNodeId, type: 'custom', position: { x: startX, y: startY + verticalGap },
       data: {
         id: responseNodeId, label: `Agent: ${userPrompt.substring(0, 40)}...`,
         nodeType: 'AI_RESPONSE', isLoading: true,

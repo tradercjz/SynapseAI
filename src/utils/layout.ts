@@ -3,9 +3,9 @@ import dagre from 'dagre';
 import { Node, Edge } from 'reactflow';
 import { NodeData } from '../types';
 
-const nodeWidth = 450;
+export const nodeWidth = 450;
 const nodeHeight = 150;
-const HORIZONTAL_GAP = 200; // The horizontal space between separate conversation streams
+export const HORIZONTAL_GAP = 200; // The horizontal space between separate conversation streams
 
 const calculateNodeHeight = (node: Node<NodeData>): number => {
     const BASE_HEIGHT = 80; 
