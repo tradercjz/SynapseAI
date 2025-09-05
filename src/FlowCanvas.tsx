@@ -295,6 +295,12 @@ export default function FlowCanvas() {
     const conversationHistory: Message[] = [];
     const responseNodeId = uuidv4();
     const userNodeId = uuidv4();
+
+    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
+        const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+        const newGraph = graphUpdater(currentGraph);
+        updateGraph(newGraph);
+      };
     
     const userNode: Node<NodeData> = {
         id: userNodeId, type: 'custom', position: { x: 0, y: 0 },
@@ -309,7 +315,7 @@ export default function FlowCanvas() {
       }
     };
     
-    setGraphState(currentGraph => ({
+    performUpdate(currentGraph => ({
       nodes: currentGraph.nodes.concat([userNode, responseNode]),
       edges: addEdge({ id: `e-${userNode.id}-${responseNode.id}`, source: userNode.id, target: responseNode.id, animated: true }, currentGraph.edges),
     }));
@@ -319,7 +325,7 @@ export default function FlowCanvas() {
     // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
     streamAgentResponse(dummyParent, userPrompt, conversationHistory,injectedContext, {
       onUpdate: (update) => {
-        setGraphState(g => ({
+        performUpdate(g => ({
           ...g,
           nodes: g.nodes.map(n => {
             if (n.id === responseNodeId) {
@@ -345,7 +351,7 @@ export default function FlowCanvas() {
         }));
       },
       onClose: () => {
-        setGraphState(g => ({
+        performUpdate(g => ({
           ...g,
           nodes: g.nodes.map(n => {
             if (n.id === responseNodeId) {
@@ -365,7 +371,7 @@ export default function FlowCanvas() {
       },
       onError: (error) => {
         console.error("Streaming Error:", error);
-        setGraphState(g => ({
+        performUpdate(g => ({
           ...g,
           nodes: g.nodes.map(n => {
             if (n.id === responseNodeId) {

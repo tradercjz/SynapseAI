@@ -3,25 +3,24 @@ import React, { useState } from 'react';
 import { Button, Menu, MenuItem, ListItemIcon, ListItemText, Divider, Box, Tooltip, IconButton, Dialog, DialogTitle, DialogContent, TextField, DialogActions } from '@mui/material';
 import { Workspaces as WorkspacesIcon, Add as AddIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useWorkspaceStore, Workspace } from '../store/workspaceStore';
+import { useUIStore } from '../store/uiStore';
 
 export default function WorkspaceManager() {
-  const { workspaces, activeWorkspaceId, actions } = useWorkspaceStore();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  // 从 workspace store 获取数据和 actions
+  const { workspaces, activeWorkspaceId, actions: workspaceActions } = useWorkspaceStore();
+  
+  // 从 ui store 获取菜单的 anchor 和 setter
+  const { workspaceMenuAnchorEl, setWorkspaceMenuAnchorEl } = useUIStore();
+  
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
 
-  const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
-
-  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
   const handleMenuClose = () => {
-    setAnchorEl(null);
+    setWorkspaceMenuAnchorEl(null);
   };
 
   const handleSwitch = (id: string) => {
-    actions.switchWorkspace(id);
+    workspaceActions.switchWorkspace(id);
     handleMenuClose();
   };
 
@@ -33,15 +32,14 @@ export default function WorkspaceManager() {
   
   const handleCreate = () => {
     if (newWorkspaceName.trim()) {
-        actions.createWorkspace(newWorkspaceName.trim());
+        workspaceActions.createWorkspace(newWorkspaceName.trim());
         setCreateModalOpen(false);
     }
   };
   
   const handleDelete = (id: string) => {
-    // Basic confirmation
     if (window.confirm(`Are you sure you want to delete workspace "${workspaces[id].name}"? This cannot be undone.`)) {
-        actions.deleteWorkspace(id);
+        workspaceActions.deleteWorkspace(id);
     }
     handleMenuClose();
   };
@@ -49,43 +47,36 @@ export default function WorkspaceManager() {
 
   return (
     <>
-      <Box sx={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
-        <Tooltip title="Manage Workspaces">
-          <Button
-            variant="contained"
-            startIcon={<WorkspacesIcon />}
-            onClick={handleMenuClick}
-          >
-            {activeWorkspace ? activeWorkspace.name : 'No Workspace'}
-          </Button>
-        </Tooltip>
-        <Menu
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleMenuClose}
-        >
-          <MenuItem onClick={handleOpenCreateModal}>
-            <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>New Workspace</ListItemText>
+      {/* 移除了原来的 Box 和 Button，只留下 Menu 和 Dialog */}
+      <Menu
+        anchorEl={workspaceMenuAnchorEl} // <-- 使用全局状态
+        open={Boolean(workspaceMenuAnchorEl)} // <-- 使用全局状态
+        onClose={handleMenuClose}
+        // 让菜单从图标的右侧弹出
+        anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+      >
+        <MenuItem onClick={handleOpenCreateModal}>
+          <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>New Workspace</ListItemText>
+        </MenuItem>
+        <Divider />
+        {Object.values(workspaces)
+          .sort((a, b) => b.lastModified - a.lastModified)
+          .map((ws: Workspace) => (
+          <MenuItem key={ws.id} selected={ws.id === activeWorkspaceId} onClick={() => handleSwitch(ws.id)}>
+            <ListItemText sx={{ mr: 2 }}>{ws.name}</ListItemText>
+            <Tooltip title="Delete Workspace">
+                <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDelete(ws.id); }}>
+                    <DeleteIcon fontSize='small' />
+                </IconButton>
+            </Tooltip>
           </MenuItem>
-          <Divider />
-          {Object.values(workspaces)
-            .sort((a, b) => b.lastModified - a.lastModified)
-            .map((ws: Workspace) => (
-            <MenuItem key={ws.id} selected={ws.id === activeWorkspaceId} onClick={() => handleSwitch(ws.id)}>
-              <ListItemText sx={{ mr: 2 }}>{ws.name}</ListItemText>
-              <Tooltip title="Delete Workspace">
-                  <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDelete(ws.id); }}>
-                      <DeleteIcon fontSize='small' />
-                  </IconButton>
-              </Tooltip>
-            </MenuItem>
-          ))}
-        </Menu>
-      </Box>
+        ))}
+      </Menu>
 
-      {/* Create Workspace Modal */}
       <Dialog open={isCreateModalOpen} onClose={() => setCreateModalOpen(false)}>
+        {/* ... Dialog 内容保持不变 ... */}
         <DialogTitle>Create New Workspace</DialogTitle>
         <DialogContent>
             <TextField

@@ -1,15 +1,25 @@
 // src/components/SidebarToolbar.tsx
 import React from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
-import { CloudQueue as CloudQueueIcon, Folder as FolderIcon, Storefront as StorefrontIcon } from '@mui/icons-material';
+import { CloudQueue as CloudQueueIcon, Folder as FolderIcon, Storefront as StorefrontIcon, Workspaces as WorkspacesIcon  } from '@mui/icons-material';
 import { useUIStore, ActiveTool } from '../store/uiStore';
+import { useWorkspaceStore } from '../store/workspaceStore'; 
 
 const SidebarToolbar: React.FC = () => {
-  const { activeTool, toggleActiveTool } = useUIStore();
+  const { activeTool, toggleActiveTool, setWorkspaceMenuAnchorEl  } = useUIStore();
+  const { workspaces, activeWorkspaceId } = useWorkspaceStore();
+  
+  const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
 
   const handleToggle = (tool: ActiveTool) => {
     toggleActiveTool(tool);
   };
+
+  const handleWorkspaceMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setWorkspaceMenuAnchorEl(event.currentTarget);
+  };
+
+  const workspaceTooltip = `Workspace: ${activeWorkspace ? activeWorkspace.name : 'None'}`;
 
   return (
     <Box
@@ -64,6 +74,16 @@ const SidebarToolbar: React.FC = () => {
           </IconButton>
         </span>
       </Tooltip>
+      <Box sx={{ marginTop: 'auto' }}>
+        <Tooltip title={workspaceTooltip} placement="right">
+          <IconButton
+            onClick={handleWorkspaceMenuClick}
+            sx={{ color: 'white', '&:hover': { bgcolor: 'grey.800' } }}
+          >
+            <WorkspacesIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 };
