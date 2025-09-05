@@ -15,6 +15,7 @@ import OmniBar from './OmniBar';
 import { streamAgentResponse } from './agentService';
 import { getLayoutedElements } from './utils/layout'; 
 import { DbSchema, useContextStore, UserFile } from './store/contextStore';
+import { useWorkspaceStore } from './store/workspaceStore';
 import ContextDisplayBar from './components/ContextDisplayBar';
 import { isEqual } from 'lodash';
 
@@ -83,16 +84,21 @@ const buildInjectedContext = (
 };
 
 export default function FlowCanvas() {
-  const [graphState, setGraphState] = useState<{ nodes: Node<NodeData>[], edges: Edge[] }>({ nodes: [], edges: [] });
-  const { nodes, edges } = graphState;
+  const { workspaces, activeWorkspaceId, actions } = useWorkspaceStore();
+  const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
+  const nodes = activeWorkspace?.nodes || [];
+  const edges = activeWorkspace?.edges || [];
   const reactFlowInstance = useReactFlow();
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => setGraphState(g => ({ ...g, nodes: applyNodeChanges(changes, g.nodes) })), []);
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => setGraphState(g => ({ ...g, edges: applyEdgeChanges(changes, g.edges) })), []);
-  const onConnect = useCallback((connection: Connection) => setGraphState(g => ({ ...g, edges: addEdge(connection, g.edges) })), []);
+  const updateGraph = actions.updateActiveWorkspaceGraph;
 
+  const onNodesChange = useCallback((changes: NodeChange[]) => updateGraph({ nodes: applyNodeChanges(changes, nodes), edges }), [nodes, edges, updateGraph]);
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => updateGraph({ nodes, edges: applyEdgeChanges(changes, edges) }), [nodes, edges, updateGraph]);
+  const onConnect = useCallback((connection: Connection) => updateGraph({ nodes, edges: addEdge(connection, edges) }), [nodes, edges, updateGraph]);
+  
   useEffect(() => {
+    // Only run layouting if there are nodes and no input is active.
     if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
       const layoutedNodes = getLayoutedElements(nodes, edges);
       const currentPositions = nodes.map(n => ({ id: n.id, ...n.position }));
@@ -100,7 +106,7 @@ export default function FlowCanvas() {
 
       if (!isEqual(currentPositions, newPositions)) {
         console.log("Layout changed, applying new positions.");
-        setGraphState(currentGraph => ({ ...currentGraph, nodes: layoutedNodes }));
+        updateGraph({ nodes: layoutedNodes, edges });
       }
     }
   }, [nodes.length, edges.length]);
@@ -128,7 +134,13 @@ export default function FlowCanvas() {
       return;
     }
 
-    setGraphState(currentGraph => {
+    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
+      const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+      const newGraph = graphUpdater(currentGraph);
+      updateGraph(newGraph);
+    };
+
+    performUpdate(currentGraph => {
       // Build history with the passed parentNode, using its ID.
       const conversationHistory = buildConversationHistory(parentNode.id, currentGraph.nodes, currentGraph.edges);
       const { userFiles } = useContextStore.getState();
@@ -137,7 +149,7 @@ export default function FlowCanvas() {
       streamAgentResponse(parentNode, prompt, conversationHistory,injectedContext, {
         // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
         onUpdate: (update) => {
-          setGraphState(g => ({
+          performUpdate(g => ({
             ...g,
             nodes: g.nodes.map(n => {
               if (n.id === responseNodeId) {
@@ -163,7 +175,7 @@ export default function FlowCanvas() {
           }));
         },
         onClose: () => {
-          setGraphState(g => ({
+          performUpdate(g => ({
             ...g,
             nodes: g.nodes.map(n => {
               if (n.id === responseNodeId) {
@@ -183,7 +195,7 @@ export default function FlowCanvas() {
         },
         onError: (error) => {
           console.error("Streaming Error:", error);
-          setGraphState(g => ({
+          performUpdate(g => ({
             ...g,
             nodes: g.nodes.map(n => {
               if (n.id === responseNodeId) {
@@ -228,8 +240,12 @@ export default function FlowCanvas() {
     if (parentNode.data.nodeType === 'INPUT') {
       return;
     }
-
-    setGraphState(currentGraph => {
+    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
+      const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+      const newGraph = graphUpdater(currentGraph);
+      updateGraph(newGraph);
+    };
+    performUpdate(currentGraph => {
       const existingInputNode = currentGraph.nodes.find(n => n.data.nodeType === 'INPUT');
 
       if (existingInputNode && currentGraph.edges.some(e => e.source === parentNode.id && e.target === existingInputNode.id)) {
@@ -272,7 +288,7 @@ export default function FlowCanvas() {
         edges: addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, edgesWithoutOldInput),
       };
     });
-  }, [handleInputSubmit]);
+  }, [handleInputSubmit, updateGraph]);
 
   const handleCreateNode = useCallback((userPrompt: string) => {
     const dummyParent: Node<NodeData> = { id: 'root', data: {id: 'root', label: '', nodeType: 'USER_QUERY'}, position: {x:0, y:0}, type: 'custom' };

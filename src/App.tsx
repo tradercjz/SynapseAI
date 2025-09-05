@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import AuthControl from './components/AuthControl';
 import LoginModal from './components/LoginModal';
 import MainLayout from './components/MainLayout'; // Import our new layout component
+import WorkspaceManager from './components/WorkspaceManager';
 import './styles.css';
 
 const darkTheme = createTheme({
@@ -43,6 +44,7 @@ function App() {
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogoutClick={handleLogout}
         />
+        <WorkspaceManager />
         <LoginModal
           open={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
