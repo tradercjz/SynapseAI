@@ -17,6 +17,7 @@ import { getLayoutedElements } from './utils/layout';
 import { DbSchema, useContextStore, UserFile } from './store/contextStore';
 import { useWorkspaceStore } from './store/workspaceStore';
 import ContextDisplayBar from './components/ContextDisplayBar';
+import ConversationBookmarks from './components/ConversationBookmarks'; 
 import { isEqual } from 'lodash';
 
 
@@ -420,6 +421,7 @@ export default function FlowCanvas() {
       )}
       <OmniBar onCreateNode={handleCreateNode} />
       <ContextDisplayBar />
+      <ConversationBookmarks nodes={nodes} edges={edges} />
       <ReactFlow
         nodes={nodes}
         edges={edges}
