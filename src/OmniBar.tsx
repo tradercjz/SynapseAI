@@ -13,11 +13,11 @@ export default function OmniBar({ onCreateNode }: OmniBarProps) {
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && value.trim() !== '') {
-      if (!selectedEnvironment) {
-        // This check is a fallback, the input should be disabled anyway.
-        alert('Please select an environment from the sidebar first.');
-        return;
-      }
+      // if (!selectedEnvironment) {
+      //   // This check is a fallback, the input should be disabled anyway.
+      //   alert('Please select an environment from the sidebar first.');
+      //   return;
+      // }
       onCreateNode(value.trim());
       setValue('');
     }
