@@ -7,7 +7,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
-
+import { Box, Typography } from '@mui/material'; 
 import { NodeData } from './types';
 import { AgentUpdate, LlmChunk, Message, TaskEnd } from './agent';
 import CustomNode from './CustomNode';
@@ -18,6 +18,7 @@ import { DbSchema, useContextStore, UserFile } from './store/contextStore';
 import { useWorkspaceStore } from './store/workspaceStore';
 import ContextDisplayBar from './components/ContextDisplayBar';
 import { isEqual } from 'lodash';
+
 
 const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[], edges: Edge[]): Message[] => {
     const history: Message[] = [];
@@ -393,7 +394,30 @@ export default function FlowCanvas() {
   }, []);
 
   return (
-    <div className="flow-canvas" style={{width: '100%', height: '100%'}}>
+    <div className="flow-canvas" style={{width: '100%', height: '100%', position: 'relative' }}>
+      {activeWorkspace && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            zIndex: 8, // zIndex 比 OmniBar 和 ContextBar 低，但比画布高
+            p: .01,
+            backgroundColor: 'rgba(255, 255, 255, 0.85)', // 半透明背景
+            borderRadius: '4px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+            backdropFilter: 'blur(4px)', // 毛玻璃效果
+            pointerEvents: 'none', // 关键：让鼠标事件可以穿透此元素
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" display="block">
+            WORKSPACE
+          </Typography>
+          <Typography variant="subtitle1" fontWeight="bold">
+            {activeWorkspace.name}
+          </Typography>
+        </Box>
+      )}
       <OmniBar onCreateNode={handleCreateNode} />
       <ContextDisplayBar />
       <ReactFlow
