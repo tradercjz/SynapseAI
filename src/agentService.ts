@@ -126,3 +126,22 @@ export const streamAgentResponse = (
       }
   });
 };
+
+export interface FeedbackPayload {
+  turn_id: string;
+  feedback: 'like' | 'dislike';
+  prompt: string;
+  response: string;
+  conversation_history: Message[];
+}
+
+export const sendFeedback = async (payload: FeedbackPayload): Promise<void> => {
+  try {
+    await apiClient.post('/feedback', payload);
+    console.log('Feedback sent successfully for turn:', payload.turn_id);
+  } catch (error) {
+    console.error('Failed to send feedback:', error);
+    // You could add user-facing error handling here if needed
+    throw error;
+  }
+};

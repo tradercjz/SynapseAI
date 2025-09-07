@@ -12,7 +12,7 @@ import { NodeData } from './types';
 import { AgentUpdate, LlmChunk, Message, TaskEnd } from './agent';
 import CustomNode from './CustomNode';
 import OmniBar from './OmniBar';
-import { streamAgentResponse } from './agentService';
+import { streamAgentResponse, sendFeedback } from './agentService';
 import { getLayoutedElements, nodeWidth, HORIZONTAL_GAP } from './utils/layout'; 
 import { DbSchema, useContextStore, UserFile } from './store/contextStore';
 import { useWorkspaceStore } from './store/workspaceStore';
@@ -157,6 +157,54 @@ export default function FlowCanvas() {
       }, 100);
     }
   }, [nodes.length, reactFlowInstance]);
+
+  const handleFeedback = useCallback(async (nodeId: string, feedback: 'like' | 'dislike') => {
+    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
+      const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+      const newGraph = graphUpdater(currentGraph);
+      updateGraph(newGraph);
+    };
+
+    const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+    const aiNode = currentGraph.nodes.find(n => n.id === nodeId);
+    if (!aiNode) return;
+
+    // 1. 更新 UI，立即禁用按钮，提供即时反馈
+    performUpdate(g => ({
+      ...g,
+      nodes: g.nodes.map(n => n.id === nodeId ? { ...n, data: { ...n.data, feedbackSent: feedback } } : n)
+    }));
+
+    try {
+      // 2. 收集所需数据
+      const sourceEdge = currentGraph.edges.find(e => e.target === nodeId);
+      const userNode = currentGraph.nodes.find(n => n.id === sourceEdge?.source);
+      const prompt = userNode?.data.label || 'Unknown Prompt';
+      
+      const lastStage = aiNode.data.agentResponse?.stages.slice(-1)[0];
+      const response = (lastStage as TaskEnd)?.final_message || 'No final message.';
+
+      const conversationHistory = buildConversationHistory(nodeId, currentGraph.nodes, currentGraph.edges);
+
+      // 3. 调用 API
+      await sendFeedback({
+        turn_id: nodeId,
+        feedback,
+        prompt,
+        response,
+        conversation_history: conversationHistory,
+      });
+
+    } catch (error) {
+      // 4. 如果 API 调用失败，可以选择将 UI 状态重置回来
+      console.error("Reverting feedback state due to API failure.");
+      performUpdate(g => ({
+        ...g,
+        nodes: g.nodes.map(n => n.id === nodeId ? { ...n, data: { ...n.data, feedbackSent: null } } : n)
+      }));
+      // Optionally show an error message to the user
+    }
+  }, [updateGraph]);
   
   const handleInputSubmit = useCallback((prompt: string, inputNodeId: string, parentNode: Node<NodeData>) => {
     const responseNodeId = uuidv4();
@@ -277,10 +325,12 @@ export default function FlowCanvas() {
           id: responseNodeId, label: `Agent: ${prompt.substring(0, 40)}...`,
           nodeType: 'AI_RESPONSE', isLoading: true,
           agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
+          feedbackSent: null,
+          onFeedback: handleFeedback,
         }
       };
       
-     return {
+      return {
         nodes: solidifiedNodes.concat(responseNode),
         edges: addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, currentGraph.edges),
       };
@@ -381,6 +431,8 @@ export default function FlowCanvas() {
         id: responseNodeId, label: `Agent: ${userPrompt.substring(0, 40)}...`,
         nodeType: 'AI_RESPONSE', isLoading: true,
         agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
+        feedbackSent: null,
+        onFeedback: handleFeedback,
       }
     };
     

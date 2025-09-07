@@ -18,7 +18,10 @@ export type NodeData = {
 
   currentStatusMessage?: string; 
 
+  feedbackSent?: 'like' | 'dislike' | null;
+
   // onAgentClick 签名保持不变
   onAgentClick?: (id: string, label: string) => void;
   onSubmit?:  (prompt: string, nodeId: string) => void;
+  onFeedback?: (nodeId: string, feedback: 'like' | 'dislike') => void;
 };
