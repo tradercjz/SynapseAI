@@ -63,7 +63,10 @@ const getStageSummary = (stage: AgentStage): React.ReactNode => {
       return <>{obs.is_error ? '❌' : '🔍'} <b>Observation</b></>;
     case 'end':
       const end = stage as TaskEnd;
-      return <>{end.success ? '✅' : '❌'} <b>Task Finished</b></>;
+      // If `end.success` is explicitly `false`, we show '❌'.
+      // In all other cases (true, undefined, null), we default to '✅'.
+      const isSuccess = end.success !== false;
+      return <>{isSuccess ? '✅' : '❌'} <b>Task Finished</b></>;
     default:
       return <>- <b>Status:</b> {stage.subtype}</>;
   }
