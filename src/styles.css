@@ -275,3 +275,39 @@ body {
   66% { content: '...'; }
   100% { content: '.'; }
 }
+
+.main-panel-group {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 
+  为拖拽手柄设置更明显的样式，方便调试 
+*/
+.resize-handle {
+  width: 8px;
+  background-color: #e0e0e0; /* 灰色背景 */
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+/* 鼠标悬停时，手柄变为蓝色 */
+.resize-handle:hover {
+  background-color: #1976d2; /* MUI Primary Blue */
+}
+
+/* 手柄中间的指示器，让它看起来更像一个可拖拽的条 */
+.resize-handle-indicator {
+  width: 2px;
+  height: 40px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}

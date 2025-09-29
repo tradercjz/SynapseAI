@@ -1,5 +1,6 @@
 // src/store/uiStore.ts
 import {create} from 'zustand';
+import type { Environment } from './contextStore';
 
 // Defines the possible tools that can be active in the sidebar.
 export type ActiveTool = 'ENVIRONMENTS' | 'USER_SPACE' | 'MARKETPLACE' | null;
@@ -7,14 +8,17 @@ export type ActiveTool = 'ENVIRONMENTS' | 'USER_SPACE' | 'MARKETPLACE' | null;
 interface UIState {
   activeTool: ActiveTool;
   workspaceMenuAnchorEl: HTMLElement | null; 
+  activeCodeServerEnv: Environment | null;
   toggleActiveTool: (tool: ActiveTool) => void;
   setWorkspaceMenuAnchorEl: (el: HTMLElement | null) => void; 
+  setActiveCodeServerEnv: (env: Environment | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   // Let's start with the Environments panel open by default.
   activeTool: 'ENVIRONMENTS', 
   workspaceMenuAnchorEl: null,
+  activeCodeServerEnv: null,
 
   // This function allows toggling a panel open and closed.
   toggleActiveTool: (tool) => set((state) => ({
@@ -22,4 +26,5 @@ export const useUIStore = create<UIState>((set) => ({
   })),
 
   setWorkspaceMenuAnchorEl: (el) => set({ workspaceMenuAnchorEl: el }),
+  setActiveCodeServerEnv: (env) => set({ activeCodeServerEnv: env }),
 }));

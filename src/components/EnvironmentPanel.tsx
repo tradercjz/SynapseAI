@@ -9,10 +9,11 @@ import {
   FormControlLabel, Switch,
   IconButton
 } from '@mui/material';
-import { Add as AddIcon, ExpandMore as ExpandMoreIcon, Launch as LaunchIcon } from '@mui/icons-material';
+import { Add as AddIcon, ExpandMore as ExpandMoreIcon, Launch as LaunchIcon, Code as CodeIcon } from '@mui/icons-material';
 import { apiClient } from '../agentService';
 import { useContextStore, Environment, DbSchema } from '../store/contextStore';
 import CreateEnvironmentModal from './CreateEnvironmentModal';
+import { useUIStore } from '../store/uiStore';
 
 const statusColors: Record<string, 'default' | 'info' | 'success' | 'warning' | 'error'> = {
   PENDING: 'default',
@@ -33,6 +34,31 @@ const EnvironmentPanel: React.FC = () => {
   const [expandedDb, setExpandedDb] = useState<Record<string, boolean>>({});
 
   const [showAll, setShowAll] = useState(false);
+  const { setActiveCodeServerEnv } = useUIStore();
+
+  const handleOpenCodeEditor = async (env: Environment) => {
+        try {
+            // 1. 调用后端获取 ticket
+            // const response = await apiClient.post(`/environments/${env.id}/codeserver/ticket`);
+            // const { ticket } = response.data;
+
+            // if (!ticket) {
+            //     alert("Failed to get access ticket for the code editor.");
+            //     return;
+            // }
+
+            // // 2. 将带有 ticket 的环境对象设置到全局状态
+            // // 我们需要一种方式将 ticket 传递给 CodeServerPanel
+            // // 最好的方式是直接附加到 env 对象上
+            // const envWithTicket = { ...env, code_server_ticket: ticket };
+            // setActiveCodeServerEnv(envWithTicket);
+            setActiveCodeServerEnv(env);
+
+        } catch (error) {
+            console.error("Error getting code server ticket:", error);
+            alert("Could not open the code editor. See console for details.");
+        }
+    };
 
   const fetchEnvironments = useCallback(async () => {
     
@@ -122,26 +148,45 @@ const EnvironmentPanel: React.FC = () => {
               key={env.id} 
               disablePadding
               secondaryAction={
-                <Tooltip title="Open DolphinDB Web UI" placement="right">
-                  {/* The span is important for showing the tooltip on a disabled button */}
-                  <span>
-                    <IconButton
-                      edge="end"
-                      aria-label="launch"
-                      size="small"
-                      // The button is only enabled if the status is RUNNING
-                      disabled={env.status !== 'RUNNING'}
-                      onClick={() => {
-                        if (env.public_ip && env.port) {
-                          // Open the URL in a new tab
-                          window.open(`http://${env.public_ip}:${env.port}`, '_blank');
-                        }
-                      }}
-                    >
-                      <LaunchIcon fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
+                
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  {/* 新的 Code Server 按钮 */}
+                  <Tooltip title="Open Code Editor" placement="right">
+                    <span>
+                      <IconButton
+                        edge="end"
+                        aria-label="code-editor"
+                        size="small"
+                        // 按钮启用条件：环境运行中且有 code_server_public_ip
+                        disabled={env.status !== 'RUNNING' || !env.code_server_public_ip}
+                        onClick={() => {
+                          handleOpenCodeEditor(env); 
+                        }}
+                      >
+                        <CodeIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+
+                  {/* 原有的跳转按钮 */}
+                  <Tooltip title="Open DolphinDB Web UI" placement="right">
+                    <span>
+                      <IconButton
+                        edge="end"
+                        aria-label="launch"
+                        size="small"
+                        disabled={env.status !== 'RUNNING' || !env.public_ip}
+                        onClick={() => {
+                          if (env.public_ip && env.port) {
+                            window.open(`http://${env.public_ip}:${env.port}`, '_blank');
+                          }
+                        }}
+                      >
+                        <LaunchIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
               }
             >
               <ListItemButton

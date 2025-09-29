@@ -555,7 +555,6 @@ export default function FlowCanvas() {
       )}
       <OmniBar onCreateNode={handleCreateNode} />
       <ContextDisplayBar />
-      <ConversationBookmarks nodes={nodes} edges={edges} />
       <ReactFlow
         nodes={nodes}
         edges={edges}
