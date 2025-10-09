@@ -4,6 +4,7 @@ import type { AgentUpdate, Message } from './agent';
 import type { Node } from 'reactflow';
 import axios from 'axios';
 import type { NodeData } from './types'; // 我们自己的 NodeData 类型
+import { useContextStore } from './store/contextStore';
 
 // 定义回调函数的类型
 export interface StreamCallbacks {
@@ -51,8 +52,8 @@ export const streamAgentResponse = (
       return;
   }
 
-  // 这里的 envId 需要一个来源，暂时硬编码或从 sourceNode 中获取
-  const envId = 'some-environment-id'; 
+  const selectedEnv = useContextStore.getState().selectedEnvironment;
+  const envId = selectedEnv ? selectedEnv.id : null;
 
   let conversation_history;
   if (!conversationHistory || conversationHistory.length === 0) {
@@ -72,11 +73,17 @@ export const streamAgentResponse = (
   type RequestBody = {
     conversation_history: any;
     injected_context?: object | null;
+    env_id?: string | null;
   };
 
   const requestBody: RequestBody = {
     conversation_history,
   };
+
+  if (envId) {
+    requestBody.env_id = envId;
+  }
+
 
   if (injectedContext) {
     requestBody.injected_context = injectedContext;
