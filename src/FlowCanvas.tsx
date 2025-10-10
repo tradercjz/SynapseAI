@@ -90,8 +90,11 @@ export default function FlowCanvas() {
   const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
   const nodes = activeWorkspace?.nodes || [];
   const edges = activeWorkspace?.edges || [];
-  const reactFlowInstance = useReactFlow();
+  const { project, ...reactFlowInstance } = useReactFlow(); 
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+
+   // --- 使用 useRef 存储正在连接的起始节点信息 ---
+  const connectingNodeId = useRef<string | null>(null);
 
   const stageLengthsRef = useRef<Record<string, number>>({});
 
@@ -337,59 +340,62 @@ export default function FlowCanvas() {
     });
   }, []);
 
-  const onNodeClick = useCallback((event: React.MouseEvent, parentNode: Node<NodeData>) => {
-    if (parentNode.data.nodeType === 'INPUT') {
-      return;
-    }
-    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
-      const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
-      const newGraph = graphUpdater(currentGraph);
-      updateGraph(newGraph);
-    };
-    performUpdate(currentGraph => {
-      const existingInputNode = currentGraph.nodes.find(n => n.data.nodeType === 'INPUT');
+   const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
+    // 我们不再通过点击来创建追问框，所以清空这里的逻辑。
+    // 你可以保留这个函数用于未来的其他点击功能，比如高亮节点等。
+    console.log('Node clicked:', node.id);
+  }, []);
 
-      if (existingInputNode && currentGraph.edges.some(e => e.source === parentNode.id && e.target === existingInputNode.id)) {
-        return {
-          nodes: currentGraph.nodes.filter(n => n.id !== existingInputNode.id),
-          edges: currentGraph.edges.filter(e => e.target !== existingInputNode.id),
-        };
+  // 当用户开始从一个 Handle 拖拽时触发
+  const onConnectStart = useCallback((_: any, { nodeId }: { nodeId: string | null }) => {
+    connectingNodeId.current = nodeId;
+  }, []);
+
+  // 当用户松开鼠标，结束拖拽时触发
+  const onConnectEnd = useCallback((event: MouseEvent) => {
+    const targetIsPane = (event.target as HTMLElement).classList.contains('react-flow__pane');
+
+    // 检查：1. 鼠标是否在空白画布上松开  2. 是否有一个合法的起始节点
+    if (targetIsPane && connectingNodeId.current) {
+      const sourceNodeId = connectingNodeId.current;
+      const sourceNode = nodes.find(n => n.id === sourceNodeId);
+
+      // 确保起始节点存在且不是“输入”节点
+      if (!sourceNode || sourceNode.data.nodeType === 'INPUT') {
+        return;
       }
-
-      const nodesWithoutOldInput = existingInputNode 
-        ? currentGraph.nodes.filter(n => n.id !== existingInputNode.id) 
-        : currentGraph.nodes;
-      const edgesWithoutOldInput = existingInputNode 
-        ? currentGraph.edges.filter(e => e.target !== existingInputNode.id) 
-        : currentGraph.edges;
-
-      const inputNodeId = uuidv4();
       
-      // CRITICAL FIX: Calculate the position IMMEDIATELY.
-      // We use parentNode's actual rendered position and dimensions.
-      const newNodePosition = {
-        x: parentNode.position.x,
-        y: parentNode.position.y + (parentNode.height || 150) + 20, // Add a small gap
-      };
+      const inputNodeId = uuidv4();
+
+      // 将屏幕坐标转换为画布坐标
+      const position = project({ x: event.clientX, y: event.clientY });
 
       const inputNode: Node<NodeData> = {
         id: inputNodeId,
         type: 'custom',
-        position: newNodePosition, // Use the calculated position
+        position, // 使用转换后的坐标
         data: {
           id: inputNodeId,
           label: '',
           nodeType: 'INPUT',
-          onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, parentNode),
+          // 关键：onSubmit 回调现在需要父节点(sourceNode)的完整信息
+          onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, sourceNode),
         }
       };
 
-      return {
-        nodes: nodesWithoutOldInput.concat(inputNode),
-        edges: addEdge({ id: `e-${parentNode.id}-${inputNodeId}`, source: parentNode.id, target: inputNodeId }, edgesWithoutOldInput),
+      const newEdge: Edge = { 
+        id: `e-${sourceNodeId}-${inputNodeId}`, 
+        source: sourceNodeId, 
+        target: inputNodeId 
       };
-    });
-  }, [handleInputSubmit, updateGraph]);
+
+      // 更新状态
+      updateGraph({
+        nodes: [...nodes, inputNode],
+        edges: [...edges, newEdge],
+      });
+    }
+  }, [project, nodes, edges, updateGraph, handleInputSubmit]);
 
   const handleCreateNode = useCallback((userPrompt: string) => {
     // 1. 从 store 中获取当前工作区的最新节点列表
@@ -562,6 +568,8 @@ export default function FlowCanvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
         fitView
       >

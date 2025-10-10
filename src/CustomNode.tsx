@@ -124,7 +124,16 @@ const CustomNode: React.FC<NodeProps<NodeData>> = ({ data, id }) => {
         </Box>
       )}
       
-      <Handle type="source" position={Position.Bottom} />
+      <Handle 
+        type="source" 
+        position={Position.Bottom}
+        style={{
+          background: '#555',
+          width: 10,
+          height: 10,
+          borderRadius: '3px',
+        }}
+      />
     </div>
   );
 };
