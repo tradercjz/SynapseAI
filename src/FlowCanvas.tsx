@@ -530,7 +530,7 @@ export default function FlowCanvas() {
 
   return (
     <div className="flow-canvas" style={{width: '100%', height: '100%', position: 'relative' }}>
-      {activeWorkspace && (
+      {/* {activeWorkspace && (
         <Box
           sx={{
             position: 'absolute',
@@ -552,7 +552,7 @@ export default function FlowCanvas() {
             {activeWorkspace.name}
           </Typography>
         </Box>
-      )}
+      )} */}
       <OmniBar onCreateNode={handleCreateNode} />
       <ContextDisplayBar />
       <ReactFlow
