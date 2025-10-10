@@ -39,33 +39,27 @@ function App() {
     setToken(null);
   };
 
-  return (
+ return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      {/* 
-        使用 Box 和 flex 布局来创建一个 Header + Main Content 的垂直结构。
-        app-container 的样式也需要做相应调整。
-      */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <Box sx={{ height: '100vh', width: '100vw', position: 'relative' }}>
+        {/* MainLayout 现在先渲染，作为背景 */}
+        <MainLayout />
+        
+        {/* Header 后渲染，凭借其 position:fixed 和更高的 zIndex 浮在上面 */}
         <Header
           isAuthenticated={!!token}
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogoutClick={handleLogout}
         />
         
-        {/* WorkspaceManager 是一个无UI的逻辑组件，可以放在这里 */}
+        {/* 其他逻辑组件，它们没有UI，可以放在任何位置 */}
         <WorkspaceManager />
-        
         <LoginModal
           open={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={handleLoginSuccess}
         />
-        
-        {/* 主布局现在会占据所有剩余空间 */}
-        <Box sx={{ flex: 1, position: 'relative', minHeight: 0  }}>
-          <MainLayout />
-        </Box>
       </Box>
     </ThemeProvider>
   );
