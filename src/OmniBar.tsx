@@ -27,7 +27,7 @@ export default function OmniBar({ onCreateNode }: OmniBarProps) {
 
   return (
     <Paper
-      elevation={4}
+      elevation={0}
       sx={{
         position: 'absolute',
         bottom: 30,
@@ -39,7 +39,12 @@ export default function OmniBar({ onCreateNode }: OmniBarProps) {
         alignItems: 'center',
         width: '50%',
         maxWidth: '700px',
-        borderRadius: '12px'
+        borderRadius: '12px',
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        border: '1px solid rgba(255, 255, 255, 0.3)',
       }}
     >
       {/* Display the selected context as read-only text */}
