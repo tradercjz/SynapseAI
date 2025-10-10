@@ -100,12 +100,15 @@ export const streamAgentResponse = (
     // 关键：处理消息事件
     onmessage(event) {
       try {
+        if (!event.data) {
+          return; // 忽略空的 keep-alive 消息
+        }
         const update = JSON.parse(event.data) as AgentUpdate;
         onUpdate(update); // 将解析后的数据块通过回调传给React组件
 
         // 如果是任务结束信号，则手动关闭连接
         if (update.subtype === 'end' || update.subtype === 'error') {
-          onClose();
+          //onClose();
         }
       } catch (e) {
         onError(e);

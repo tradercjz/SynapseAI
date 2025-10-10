@@ -135,21 +135,7 @@ export default function FlowCanvas() {
   const onEdgesChange = useCallback((changes: EdgeChange[]) => updateGraph({ nodes, edges: applyEdgeChanges(changes, edges) }), [nodes, edges, updateGraph]);
   const onConnect = useCallback((connection: Connection) => updateGraph({ nodes, edges: addEdge(connection, edges) }), [nodes, edges, updateGraph]);
   
-  // useEffect(() => {
-  //   // Only run layouting if there are nodes and no input is active.
-  //   if (nodes.length > 0 && !nodes.some(n => n.data.nodeType === 'INPUT')) {
-  //     const layoutedNodes = getLayoutedElements(nodes, edges);
-  //     const currentPositions = nodes.map(n => ({ id: n.id, ...n.position }));
-  //     const newPositions = layoutedNodes.map(n => ({ id: n.id, ...n.position }));
 
-  //     if (!isEqual(currentPositions, newPositions)) {
-  //       console.log("Layout changed, applying new positions.");
-  //       updateGraph({ nodes: layoutedNodes, edges });
-  //     }
-  //   }
-  // }, [nodes.length, edges.length]);
-
-  // This separate useEffect for focusing is correct.
   useEffect(() => {
     if (nodes.length === 0) return;
     const activeInputNode = nodes.find(n => n.data.nodeType === 'INPUT');
@@ -208,17 +194,55 @@ export default function FlowCanvas() {
       // Optionally show an error message to the user
     }
   }, [updateGraph]);
+
+  const performUpdate = useCallback((graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
+    const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
+    const newGraph = graphUpdater(currentGraph);
+    updateGraph(newGraph);
+  }, [updateGraph]);
+
+  const handleStreamError = useCallback((error: any, responseNodeId: string) => {
+      console.error("Streaming Error:", error);
+      performUpdate(g => ({
+        ...g,
+        nodes: g.nodes.map(n => {
+          if (n.id === responseNodeId) {
+            // 在 data 中增加一个错误消息字段
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                isLoading: false,
+                taskStatus: 'error',
+                label: `Error: ${n.data.label}`,
+                currentStatusMessage: error.message || 'An unknown error occurred.',
+              }
+            };
+          }
+          return n;
+        })
+      }));
+  }, [performUpdate]);
+  
   
   const handleInputSubmit = useCallback((prompt: string, inputNodeId: string, parentNode: Node<NodeData>) => {
     const responseNodeId = uuidv4();
 
-    const { selectedEnvironment, dbSchema, selectedTables } = useContextStore.getState();
+    // --- 1. 直接从 Zustand store 获取最新的状态 ---
+    const { workspaces, activeWorkspaceId } = useWorkspaceStore.getState();
+    const currentNodes = workspaces[activeWorkspaceId!].nodes;
 
-    // The check is now on the object itself.
-    if (!parentNode) {
-      console.error("Critical Error: parentNode object was not passed to handleInputSubmit.");
+    const inputNode = currentNodes.find(n => n.id === inputNodeId);
+    if (!inputNode) {
+      console.error(`Could not find input node with ID ${inputNodeId} to position the new AI node.`);
       return;
     }
+
+    const verticalGap = 40;
+    const newAiNodePosition = {
+      x: inputNode.position.x,
+      y: inputNode.position.y + (inputNode.height || 60) + verticalGap, 
+    };
 
     const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
       const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
@@ -227,13 +251,10 @@ export default function FlowCanvas() {
     };
 
     performUpdate(currentGraph => {
-      // Build history with the passed parentNode, using its ID.
       const conversationHistory = buildConversationHistory(parentNode.id, currentGraph.nodes, currentGraph.edges);
-      const { userFiles } = useContextStore.getState();
+      const { userFiles, dbSchema, selectedTables } = useContextStore.getState();
       const injectedContext = buildInjectedContext(dbSchema, selectedTables, userFiles);
-
-      streamAgentResponse(parentNode, prompt, conversationHistory,injectedContext, {
-        // --- THIS IS THE FULL, CORRECT CALLBACK LOGIC ---
+      streamAgentResponse(parentNode, prompt, conversationHistory, injectedContext, { 
         onUpdate: (update) => {
           // 定义一个列表，包含所有我们希望在UI中作为独立“阶段”显示的子类型
           const displayableSubtypes = ['react_thought', 'react_action', 'react_observation', 'end'];
@@ -266,8 +287,7 @@ export default function FlowCanvas() {
                   ...n,
                   data: {
                     ...n.data,
-                    currentStatusMessage: newStatusMessage, 
-                    agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream }
+                    agentResponse: { ...currentResponse, stages: newStages, thinkingStream: newThinkingStream,  currentStatusMessage: newStatusMessage}
                   }
                 };
               }
@@ -288,7 +308,7 @@ export default function FlowCanvas() {
                 } else if (lastStage && lastStage.type === 'error') {
                   finalStatus = 'error';
                 }
-                return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus, currentStatusMessage: undefined } };
+                return { ...n, data: { ...n.data, isLoading: false, taskStatus: finalStatus,currentStatusMessage: undefined } };
               }
               return n;
             })
@@ -307,7 +327,7 @@ export default function FlowCanvas() {
                     isLoading: false,
                     taskStatus: 'error',
                     label: `Error: ${n.data.label}`,
-                    currentStatusMessage: undefined 
+                    currentStatusMessage: undefined
                   }
                 };
               }
@@ -322,8 +342,10 @@ export default function FlowCanvas() {
           ? { ...n, data: { ...n.data, label: prompt, nodeType: 'USER_QUERY' as const } } 
           : n
       );
+
       const responseNode: Node<NodeData> = {
-        id: responseNodeId, type: 'custom', position: { x: 0, y: 0 },
+        id: responseNodeId, type: 'custom', 
+        position: newAiNodePosition,
         data: {
           id: responseNodeId, label: `Agent: ${prompt.substring(0, 40)}...`,
           nodeType: 'AI_RESPONSE', isLoading: true,
@@ -338,7 +360,7 @@ export default function FlowCanvas() {
         edges: addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, currentGraph.edges),
       };
     });
-  }, []);
+  }, [handleFeedback, updateGraph, handleStreamError])
 
    const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
     // 我们不再通过点击来创建追问框，所以清空这里的逻辑。
