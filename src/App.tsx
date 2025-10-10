@@ -1,6 +1,6 @@
 // src/App.tsx
 import React, { useState, useEffect } from 'react';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
+import { ThemeProvider, createTheme, useTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { Chat as ChatIcon, Code as CodeIcon } from '@mui/icons-material';
@@ -11,6 +11,7 @@ import MainLayout from './components/MainLayout'; // Import our new layout compo
 import WorkspaceManager from './components/WorkspaceManager';
 import './styles.css';
 import Header from './components/Header';
+import { useRef } from 'react';
 
 
 const darkTheme = createTheme({
@@ -22,6 +23,16 @@ const darkTheme = createTheme({
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const { activeMode } = useUIStore(); // 1. 从 store 获取当前的应用模式
+  const headerRef = useRef<HTMLDivElement>(null); // 1. 创建一个 ref 用于引用 Header
+  const [headerHeight, setHeaderHeight] = useState(0); // 2. 创建一个 state 存储测量到的高度
+
+  useEffect(() => {
+    if (headerRef.current) {
+      // offsetHeight 能获取包括 padding 和 border 在内的元素总高度
+      setHeaderHeight(headerRef.current.offsetHeight);
+    }
+  }, []); // 空依赖数组意味着这个 effect 只在首次渲染后运行一次
 
   useEffect(() => {
     if (token) {
@@ -43,17 +54,30 @@ function App() {
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <Box sx={{ height: '100vh', width: '100vw', position: 'relative' }}>
-        {/* MainLayout 现在先渲染，作为背景 */}
-        <MainLayout />
-        
-        {/* Header 后渲染，凭借其 position:fixed 和更高的 zIndex 浮在上面 */}
+        {/* 将 ref 传递给 Header 组件 */}
         <Header
+          ref={headerRef}
           isAuthenticated={!!token}
           onLoginClick={() => setIsLoginModalOpen(true)}
           onLogoutClick={handleLogout}
         />
         
-        {/* 其他逻辑组件，它们没有UI，可以放在任何位置 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            // --- 核心修改：使用 top 属性进行布局切换 ---
+            // 4. 根据模式和测量到的高度，动态设置 top 属性
+            top: activeMode === 'CODING' ? headerHeight : 0,
+            // 确保过渡动画平滑
+            transition: 'top 0.3s ease-in-out',
+          }}
+        >
+          <MainLayout />
+        </Box>
+        
         <WorkspaceManager />
         <LoginModal
           open={isLoginModalOpen}

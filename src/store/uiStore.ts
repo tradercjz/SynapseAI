@@ -31,5 +31,18 @@ export const useUIStore = create<UIState>((set) => ({
 
   setWorkspaceMenuAnchorEl: (el) => set({ workspaceMenuAnchorEl: el }),
   setActiveCodeServerEnv: (env) => set({ activeCodeServerEnv: env }),
-  setActiveMode: (mode: any) => set({ activeMode: mode }),
+  setActiveMode: (mode: AppMode) => set((state) => {
+    // 如果目标模式是“编码模式”，则强制关闭所有侧边面板
+    if (mode === 'CODING') {
+      return { activeMode: mode, activeTool: null };
+    }
+    
+    // 如果目标模式是“对话模式”，则恢复默认展开环境面板
+    if (mode === 'CHAT') {
+      return { activeMode: mode, activeTool: 'ENVIRONMENTS' };
+    }
+
+    // 其他情况（为了代码健壮性），只切换模式
+    return { activeMode: mode };
+  }),
 }));

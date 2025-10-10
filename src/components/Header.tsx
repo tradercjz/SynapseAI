@@ -1,18 +1,20 @@
-// src/components/Header.tsx
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { AppBar, Toolbar, Typography, Box, ToggleButton, ToggleButtonGroup, Button, Avatar, Tooltip, IconButton } from '@mui/material';
 import { Chat as ChatIcon, Code as CodeIcon, Logout as LogoutIcon, Workspaces as WorkspacesIcon } from '@mui/icons-material';
-
 import { useUIStore, AppMode } from '../store/uiStore';
 import { useWorkspaceStore } from '../store/workspaceStore';
 
+// 1. 定义 Props 接口 (保持不变)
 interface HeaderProps {
   isAuthenticated: boolean;
   onLoginClick: () => void;
   onLogoutClick: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogoutClick }) => {
+// 2. 将组件的渲染逻辑定义为一个独立的、带有明确类型的函数常量
+const HeaderRenderFunction: React.ForwardRefRenderFunction<HTMLDivElement, HeaderProps> = (props, ref) => {
+  const { isAuthenticated, onLoginClick, onLogoutClick } = props;
+
   const { activeMode, setActiveMode, setWorkspaceMenuAnchorEl } = useUIStore();
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
   const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
@@ -30,8 +32,10 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
     setWorkspaceMenuAnchorEl(event.currentTarget);
   };
 
+  // return JSX 的部分保持完全不变
   return (
     <AppBar
+      ref={ref}
       position="fixed"
       color="transparent"
       elevation={0}
@@ -46,7 +50,6 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
       <Toolbar variant="dense">
         {/* 左侧区域: Workspace */}
         <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 200 }}>
-          {/* ... 内容不变 ... */}
           <Tooltip title="Manage Workspaces">
             <IconButton onClick={handleWorkspaceMenuClick} sx={{ mr: 1 }}>
               <WorkspacesIcon />
@@ -75,7 +78,6 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
               display: 'inline-flex',
             }}
           >
-            {/* --- “水滴”滑块的核心样式升级 --- */}
             <Box
               sx={{
                 position: 'absolute',
@@ -85,71 +87,33 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
                 width: 'calc(50% - 4px)',
                 borderRadius: '6px',
                 zIndex: 0,
-                
-                // --- 动画效果 (保持不变) ---
                 transition: 'transform 0.4s cubic-bezier(0.65, 0, 0.35, 1)',
                 transform: activeMode === 'CODING' ? 'translateX(100%)' : 'translateX(0)',
-                
-                // --- “亮晶晶”质感的核心 ---
-                // 1. 使用多层渐变来模拟高光和主体光泽
                 backgroundImage: `
                   linear-gradient(to bottom, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 20%),
                   linear-gradient(to bottom, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.5))
                 `,
-                
-                // 2. 使用内嵌阴影(inset)来创造3D凹凸感和边缘高光
                 boxShadow: `
                   inset 0 1px 2px rgba(255, 255, 255, 1),
                   inset 0 -1px 2px rgba(0, 0, 0, 0.1),
                   0 4px 12px rgba(0, 0, 0, 0.15)
                 `,
-                
-                // 3. 一个更亮的边框来定义轮廓
                 border: '1px solid rgba(255, 255, 255, 0.9)',
               }}
             />
-            
             <ToggleButtonGroup
               value={activeMode}
               exclusive
               onChange={handleModeChange}
               aria-label="application mode"
               size="small"
-              sx={{
-                backgroundColor: 'transparent',
-                border: 'none',
-                '& .MuiToggleButtonGroup-grouped': { border: 0 },
-              }}
+              sx={{ backgroundColor: 'transparent', border: 'none', '& .MuiToggleButtonGroup-grouped': { border: 0 } }}
             >
-              <ToggleButton 
-                value="CHAT" 
-                aria-label="chat mode"
-                sx={{ 
-                  zIndex: 1,
-                  fontWeight: activeMode === 'CHAT' ? 600 : 400, // 选中时字体加粗
-                  color: activeMode === 'CHAT' ? '#0B3D77' : 'text.secondary', // 选中时用更深的蓝色
-                  textShadow: activeMode === 'CHAT' ? '0 1px 1px rgba(255, 255, 255, 0.5)' : 'none', // 给选中的文字加一点亮色文字阴影，使其“浮”起来
-                  backgroundColor: 'transparent !important',
-                  border: 'none !important',
-                  transition: 'color 0.4s, font-weight 0.4s', // 文字颜色和粗细也加上过渡效果
-                }}
-              >
+              <ToggleButton value="CHAT" aria-label="chat mode" sx={{ zIndex: 1, fontWeight: activeMode === 'CHAT' ? 600 : 400, color: activeMode === 'CHAT' ? '#0B3D77' : 'text.secondary', textShadow: activeMode === 'CHAT' ? '0 1px 1px rgba(255, 255, 255, 0.5)' : 'none', backgroundColor: 'transparent !important', border: 'none !important', transition: 'color 0.4s, font-weight 0.4s', '&:focus': {outline: 'none', }, }}>
                 <ChatIcon sx={{ mr: 1 }} />
                 Chat
               </ToggleButton>
-              <ToggleButton 
-                value="CODING" 
-                aria-label="coding mode"
-                sx={{ 
-                  zIndex: 1,
-                  fontWeight: activeMode === 'CODING' ? 600 : 400,
-                  color: activeMode === 'CODING' ? '#0B3D77' : 'text.secondary',
-                  textShadow: activeMode === 'CODING' ? '0 1px 1px rgba(255, 255, 255, 0.5)' : 'none',
-                  backgroundColor: 'transparent !important',
-                  border: 'none !important',
-                  transition: 'color 0.4s, font-weight 0.4s',
-                }}
-              >
+              <ToggleButton value="CODING" aria-label="coding mode" sx={{ zIndex: 1, fontWeight: activeMode === 'CODING' ? 600 : 400, color: activeMode === 'CODING' ? '#0B3D77' : 'text.secondary', textShadow: activeMode === 'CODING' ? '0 1px 1px rgba(255, 255, 255, 0.5)' : 'none', backgroundColor: 'transparent !important', border: 'none !important', transition: 'color 0.4s, font-weight 0.4s', '&:focus': {outline: 'none', },  }}>
                 <CodeIcon sx={{ mr: 1 }} />
                 Coding
               </ToggleButton>
@@ -157,9 +121,8 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
           </Box>
         </Box>
 
-        {/* 右侧区域: 登录/用户信息 (保持不变) */}
+        {/* 右侧区域: 登录/用户信息 */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', minWidth: 200 }}>
-          {/* ... (内容不变) ... */}
           {isAuthenticated ? (
             <Tooltip title="Logout">
               <IconButton onClick={onLogoutClick}>
@@ -176,5 +139,8 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
     </AppBar>
   );
 };
+
+// 3. 调用 forwardRef，传入我们刚才定义的渲染函数
+const Header = forwardRef(HeaderRenderFunction);
 
 export default Header;
