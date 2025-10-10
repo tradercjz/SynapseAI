@@ -36,9 +36,9 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
       color="transparent"
       elevation={0}
       sx={{
-        background: 'rgba(255, 255, 255, 0.01)', 
-        backdropFilter: 'blur(2px)',
-        WebkitBackdropFilter: 'blur(2px)',
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(1px)',
+        WebkitBackdropFilter: 'blur(1px)',
         borderBottom: '1px solid rgba(230, 230, 230, 0.7)',
         zIndex: 1201,
       }}
@@ -65,62 +65,87 @@ const Header: React.FC<HeaderProps> = ({ isAuthenticated, onLoginClick, onLogout
 
         {/* 中间区域: Chat/Coding 模式切换 */}
         <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
-          <ToggleButtonGroup
-            value={activeMode}
-            exclusive
-            onChange={handleModeChange}
-            aria-label="application mode"
-            size="small"
+          {/* --- 核心修改：整个 ToggleButtonGroup 的结构和样式都将改变 --- */}
+          <Box
             sx={{
-              // 整体容器加一点背景和边框，让它看起来像一个完整的“玻璃”控件
-              backgroundColor: 'rgba(0, 0, 0, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '8px', // 给整个组添加圆角
-
-              // 移除按钮之间的默认分隔线
-              '& .MuiToggleButtonGroup-grouped': {
-                border: 0,
-                // 确保分组按钮的圆角不会干扰我们给整体设置的圆角
-                '&:not(:first-of-type)': {
-                  borderRadius: '8px',
-                },
-                '&:first-of-type': {
-                  borderRadius: '8px',
-                },
-              },
-              
-              // --- 这就是实现选中效果的关键 ---
-              '& .Mui-selected': {
-                // 1. 使用一个半透明的白色背景，让它“亮”起来
-                backgroundColor: 'rgba(255, 255, 255, 0.5) !important',
-                
-                // 2. 确保文字颜色清晰可见
-                color: '#000 !important',
-                
-                // 3. 添加一个微妙的阴影，增强立体感
-                boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.1)',
-                
-                // 4. (可选) 给选中的按钮也加上一个细边框
-                border: '1px solid rgba(255, 255, 255, 0.5) !important',
-              },
-              '& .Mui-selected:hover': {
-                 // 鼠标悬停在选中项上时，让它更亮一点
-                 backgroundColor: 'rgba(255, 255, 255, 0.7) !important',
-              }
+              position: 'relative', // 1. 父容器必须是相对定位，为“水滴”滑块提供定位锚点
+              backgroundColor: 'rgba(0, 0, 0, 0.05)',
+              borderRadius: '8px',
+              p: '4px', // 留出内边距
+              display: 'inline-flex', // 让容器包裹住内部按钮
             }}
           >
-            <ToggleButton value="CHAT" aria-label="chat mode">
-              <ChatIcon sx={{ mr: 1 }} />
-              Chat
-            </ToggleButton>
-            <ToggleButton value="CODING" aria-label="coding mode">
-              <CodeIcon sx={{ mr: 1 }} />
-              Coding
-            </ToggleButton>
-          </ToggleButtonGroup>
+            {/* 2. 这就是我们的“水滴”滑块。它是一个独立的 Box 元素 */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '4px',
+                left: '4px',
+                height: 'calc(100% - 8px)', // 高度撑满内边距
+                width: 'calc(50% - 4px)',   // 宽度为一半减去内边距
+                
+                // 3. “水灵灵”的质感升级！
+                background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.6))',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12), inset 0 1px 1px rgba(255,255,255,0.7)',
+                border: '1.5px solid white',
+                
+                borderRadius: '6px',
+                zIndex: 0, // 把它放在按钮文字的下面
+                
+                // 4. “水滴”动画的核心！
+                transition: 'transform 0.4s cubic-bezier(0.65, 0, 0.35, 1)',
+                transform: activeMode === 'CODING' ? 'translateX(100%)' : 'translateX(0)',
+              }}
+            />
+            
+            <ToggleButtonGroup
+              value={activeMode}
+              exclusive
+              onChange={handleModeChange}
+              aria-label="application mode"
+              size="small"
+              sx={{
+                // 5. 移除按钮组自带的背景和边框，完全透明
+                backgroundColor: 'transparent',
+                border: 'none',
+                // 移除按钮之间的分隔线
+                '& .MuiToggleButtonGroup-grouped': { border: 0 },
+              }}
+            >
+              <ToggleButton 
+                value="CHAT" 
+                aria-label="chat mode"
+                sx={{ 
+                  zIndex: 1, // 确保文字在滑块之上
+                  color: activeMode === 'CHAT' ? 'primary.main' : 'text.secondary', // 选中时文字颜色更深
+                  fontWeight: activeMode === 'CHAT' ? 'bold' : 'normal',
+                  // 移除默认的背景和边框，避免干扰
+                  backgroundColor: 'transparent !important',
+                  border: 'none !important',
+                }}
+              >
+                <ChatIcon sx={{ mr: 1 }} />
+                Chat
+              </ToggleButton>
+              <ToggleButton 
+                value="CODING" 
+                aria-label="coding mode"
+                sx={{ 
+                  zIndex: 1,
+                  color: activeMode === 'CODING' ? 'primary.main' : 'text.secondary',
+                  fontWeight: activeMode === 'CODING' ? 'bold' : 'normal',
+                  backgroundColor: 'transparent !important',
+                  border: 'none !important',
+                }}
+              >
+                <CodeIcon sx={{ mr: 1 }} />
+                Coding
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </Box>
 
-        {/* 右侧区域: 登录/用户信息 */}
+        {/* 右侧区域: 登录/用户信息 (保持不变) */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', minWidth: 200 }}>
           {isAuthenticated ? (
             <Tooltip title="Logout">
