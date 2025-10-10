@@ -20,6 +20,7 @@ import ContextDisplayBar from './components/ContextDisplayBar';
 import ConversationBookmarks from './components/ConversationBookmarks'; 
 import { isEqual } from 'lodash';
 
+const TEMP_INPUT_NODE_ID = 'temp-input-node';
 
 const buildConversationHistory = (targetNodeId: string, nodes: Node<NodeData>[], edges: Edge[]): Message[] => {
     const history: Message[] = [];
@@ -93,34 +94,38 @@ export default function FlowCanvas() {
   const { project, ...reactFlowInstance } = useReactFlow(); 
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
+  const [userInteracted, setUserInteracted] = useState(false);
+  const viewportChangeByCode = useRef(false);
+
    // --- 使用 useRef 存储正在连接的起始节点信息 ---
   const connectingNodeId = useRef<string | null>(null);
 
   const stageLengthsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
-    const streamingNode = nodes.find(n => n.data.isLoading);
+    if (!userInteracted) {
+      const streamingNode = nodes.find(n => n.data.isLoading);
 
-    if (streamingNode) {
-      const nodeId = streamingNode.id;
-      const currentStagesLength = streamingNode.data.agentResponse?.stages.length || 0;
-      const prevStagesLength = stageLengthsRef.current[nodeId] || 0;
+      if (streamingNode) {
+        const nodeId = streamingNode.id;
+        const currentStagesLength = streamingNode.data.agentResponse?.stages.length || 0;
+        const prevStagesLength = stageLengthsRef.current[nodeId] || 0;
 
-      // 2. 只有当 stage 数量增加时，才触发聚焦
-      if (currentStagesLength > prevStagesLength) {
-        setTimeout(() => {
-          reactFlowInstance.fitView({
-            nodes: [{ id: nodeId }],
-            duration: 400,
-            padding: 0.2,
-          });
-        }, 150); // 延迟以确保节点尺寸已更新
+        // 2. 只有当 stage 数量增加时，才触发聚焦
+        if (currentStagesLength > prevStagesLength) {
+          setTimeout(() => {
+            reactFlowInstance.fitView({
+              nodes: [{ id: nodeId }],
+              duration: 400,
+              padding: 0.2,
+            });
+          }, 150); // 延迟以确保节点尺寸已更新
+        }
+        
+        // 3. 更新 ref 以供下次比较
+        stageLengthsRef.current[nodeId] = currentStagesLength;
       }
-      
-      // 3. 更新 ref 以供下次比较
-      stageLengthsRef.current[nodeId] = currentStagesLength;
     }
-
   // 4. 依赖项：我们监听 nodes 数组本身，以便能够深入比较其内容
   }, [nodes, reactFlowInstance]);
 
@@ -128,6 +133,18 @@ export default function FlowCanvas() {
   useEffect(() => {
     stageLengthsRef.current = {};
   }, [activeWorkspaceId]);
+
+  const onViewportChange = useCallback(() => {
+    // If the change was initiated by our code (fitView), ignore it.
+    if (viewportChangeByCode.current) {
+      return;
+    }
+    // Otherwise, it was a user interaction.
+    if (!userInteracted) {
+      setUserInteracted(true);
+    }
+  }, [userInteracted]);
+
 
   const updateGraph = actions.updateActiveWorkspaceGraph;
 
@@ -137,6 +154,7 @@ export default function FlowCanvas() {
   
 
   useEffect(() => {
+    if (userInteracted) return; // 用户已经交互过，就不自动布局了
     if (nodes.length === 0) return;
     const activeInputNode = nodes.find(n => n.data.nodeType === 'INPUT');
     const targetNode = activeInputNode || nodes[nodes.length - 1];
@@ -225,16 +243,20 @@ export default function FlowCanvas() {
   }, [performUpdate]);
   
   
-  const handleInputSubmit = useCallback((prompt: string, inputNodeId: string, parentNode: Node<NodeData>) => {
+  const handleInputSubmit = useCallback((prompt: string,  sourceNodeId: string) => {
     const responseNodeId = uuidv4();
+    const permanentNodeId = uuidv4();
 
     // --- 1. 直接从 Zustand store 获取最新的状态 ---
     const { workspaces, activeWorkspaceId } = useWorkspaceStore.getState();
-    const currentNodes = workspaces[activeWorkspaceId!].nodes;
+    const latestNodes = workspaces[activeWorkspaceId!].nodes;
+    const latestEdges = workspaces[activeWorkspaceId!].edges;
 
-    const inputNode = currentNodes.find(n => n.id === inputNodeId);
-    if (!inputNode) {
-      console.error(`Could not find input node with ID ${inputNodeId} to position the new AI node.`);
+    const sourceNode = latestNodes.find(n => n.id === sourceNodeId);
+    const inputNode = latestNodes.find(n => n.id === TEMP_INPUT_NODE_ID);
+    
+    if (!sourceNode || !inputNode) {
+      console.error(`Could not find source node (${sourceNodeId}) or temp input node (${TEMP_INPUT_NODE_ID}) during submission.`);
       return;
     }
 
@@ -244,17 +266,11 @@ export default function FlowCanvas() {
       y: inputNode.position.y + (inputNode.height || 60) + verticalGap, 
     };
 
-    const performUpdate = (graphUpdater: (currentGraph: { nodes: Node<NodeData>[], edges: Edge[] }) => { nodes: Node<NodeData>[], edges: Edge[] }) => {
-      const currentGraph = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!];
-      const newGraph = graphUpdater(currentGraph);
-      updateGraph(newGraph);
-    };
 
-    performUpdate(currentGraph => {
-      const conversationHistory = buildConversationHistory(parentNode.id, currentGraph.nodes, currentGraph.edges);
+      const conversationHistory = buildConversationHistory(sourceNodeId, latestNodes, latestEdges);
       const { userFiles, dbSchema, selectedTables } = useContextStore.getState();
       const injectedContext = buildInjectedContext(dbSchema, selectedTables, userFiles);
-      streamAgentResponse(parentNode, prompt, conversationHistory, injectedContext, { 
+      streamAgentResponse(sourceNode, prompt, conversationHistory, injectedContext, { 
         onUpdate: (update) => {
           // 定义一个列表，包含所有我们希望在UI中作为独立“阶段”显示的子类型
           const displayableSubtypes = ['react_thought', 'react_action', 'react_observation', 'end'];
@@ -337,36 +353,35 @@ export default function FlowCanvas() {
         }
       });
 
-      const solidifiedNodes = currentGraph.nodes.map(n => 
-        n.id === inputNodeId 
-          ? { ...n, data: { ...n.data, label: prompt, nodeType: 'USER_QUERY' as const } } 
+      const solidifiedNodes = latestNodes.map(n => 
+        n.id === TEMP_INPUT_NODE_ID 
+          ? { ...n, id: permanentNodeId, data: { ...n.data, id: permanentNodeId, label: prompt, nodeType: 'USER_QUERY' as const } } 
           : n
       );
 
       const responseNode: Node<NodeData> = {
-        id: responseNodeId, type: 'custom', 
-        position: newAiNodePosition,
-        data: {
-          id: responseNodeId, label: `Agent: ${prompt.substring(0, 40)}...`,
-          nodeType: 'AI_RESPONSE', isLoading: true,
-          agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' },
-          feedbackSent: null,
-          onFeedback: handleFeedback,
-        }
-      };
-      
-      return {
-        nodes: solidifiedNodes.concat(responseNode),
-        edges: addEdge({ id: `e-${inputNodeId}-${responseNodeId}`, source: inputNodeId, target: responseNodeId, animated: true }, currentGraph.edges),
-      };
+      id: responseNodeId, type: 'custom', position: newAiNodePosition,
+      data: { id: responseNodeId, label: `Agent: ${prompt.substring(0, 40)}...`, nodeType: 'AI_RESPONSE', isLoading: true, agentResponse: { type: 'aggregated_ai_response', stages: [], thinkingStream: '' }, feedbackSent: null, onFeedback: handleFeedback }
+    };
+    const updatedEdges = latestEdges.map(e => e.target === TEMP_INPUT_NODE_ID ? { ...e, target: permanentNodeId } : e);
+    const newEdgeToAi: Edge = { id: `e-${permanentNodeId}-${responseNodeId}`, source: permanentNodeId, target: responseNodeId, animated: true };
+
+    // 直接使用 updateGraph 更新状态
+    updateGraph({
+      nodes: [...solidifiedNodes, responseNode],
+      edges: [...updatedEdges, newEdgeToAi],
     });
   }, [handleFeedback, updateGraph, handleStreamError])
 
-   const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
-    // 我们不再通过点击来创建追问框，所以清空这里的逻辑。
-    // 你可以保留这个函数用于未来的其他点击功能，比如高亮节点等。
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
     console.log('Node clicked:', node.id);
-  }, []);
+    // 当任何节点被点击时，平滑地将视图聚焦到该节点
+    reactFlowInstance.fitView({
+        nodes: [{ id: node.id }],
+        duration: 500, // 动画时长，带来平滑感
+        padding: 0.3,  // 在节点周围留出一些边距，使其不会紧贴边缘
+    });
+  }, [reactFlowInstance]); 
 
   // 当用户开始从一个 Handle 拖拽时触发
   const onConnectStart = useCallback((_: any, { nodeId }: { nodeId: string | null }) => {
@@ -376,49 +391,40 @@ export default function FlowCanvas() {
   // 当用户松开鼠标，结束拖拽时触发
   const onConnectEnd = useCallback((event: MouseEvent) => {
     const targetIsPane = (event.target as HTMLElement).classList.contains('react-flow__pane');
-
-    // 检查：1. 鼠标是否在空白画布上松开  2. 是否有一个合法的起始节点
     if (targetIsPane && connectingNodeId.current) {
+      const { workspaces, activeWorkspaceId } = useWorkspaceStore.getState();
+      let currentNodes = workspaces[activeWorkspaceId!].nodes.filter(n => n.id !== TEMP_INPUT_NODE_ID);
+      let currentEdges = workspaces[activeWorkspaceId!].edges.filter(e => e.target !== TEMP_INPUT_NODE_ID);
       const sourceNodeId = connectingNodeId.current;
-      const sourceNode = nodes.find(n => n.id === sourceNodeId);
-
-      // 确保起始节点存在且不是“输入”节点
-      if (!sourceNode || sourceNode.data.nodeType === 'INPUT') {
-        return;
-      }
       
-      const inputNodeId = uuidv4();
+      const sourceNode = currentNodes.find(n => n.id === sourceNodeId);
+      if (!sourceNode) return;
 
-      // 将屏幕坐标转换为画布坐标
       const position = project({ x: event.clientX, y: event.clientY });
-
       const inputNode: Node<NodeData> = {
-        id: inputNodeId,
+        id: TEMP_INPUT_NODE_ID,
         type: 'custom',
-        position, // 使用转换后的坐标
+        position,
         data: {
-          id: inputNodeId,
-          label: '',
-          nodeType: 'INPUT',
-          // 关键：onSubmit 回调现在需要父节点(sourceNode)的完整信息
-          onSubmit: (prompt, nodeId) => handleInputSubmit(prompt, nodeId, sourceNode),
-        }
+          id: TEMP_INPUT_NODE_ID, label: '', nodeType: 'INPUT',
+          onSubmit: (prompt, nodeId) => {
+            const permanentNodeId = uuidv4();
+            handleInputSubmit(prompt, sourceNodeId);
+          },
+        },
+        selected: true,
       };
 
-      const newEdge: Edge = { 
-        id: `e-${sourceNodeId}-${inputNodeId}`, 
-        source: sourceNodeId, 
-        target: inputNodeId 
-      };
-
-      // 更新状态
-      updateGraph({
-        nodes: [...nodes, inputNode],
-        edges: [...edges, newEdge],
-      });
+      const newEdge: Edge = { id: `e-${sourceNode.id}-${TEMP_INPUT_NODE_ID}`, source: sourceNode.id, target: TEMP_INPUT_NODE_ID };
+      updateGraph({ nodes: [...currentNodes, inputNode], edges: [...currentEdges, newEdge] });
+      
+      setTimeout(() => {
+        viewportChangeByCode.current = true;
+        reactFlowInstance.fitView({ nodes: [{ id: TEMP_INPUT_NODE_ID }], padding: 0.4, duration: 300 });
+        setTimeout(() => { viewportChangeByCode.current = false; }, 350);
+      }, 50);
     }
-  }, [project, nodes, edges, updateGraph, handleInputSubmit]);
-
+  }, [reactFlowInstance, activeWorkspaceId, updateGraph, handleInputSubmit]);
   const handleCreateNode = useCallback((userPrompt: string) => {
     // 1. 从 store 中获取当前工作区的最新节点列表
     const currentNodes = useWorkspaceStore.getState().workspaces[useWorkspaceStore.getState().activeWorkspaceId!].nodes;
@@ -556,6 +562,16 @@ export default function FlowCanvas() {
     });
   }, []);
 
+  const onPaneClick = useCallback(() => {
+    const currentNodes = useWorkspaceStore.getState().workspaces[activeWorkspaceId!].nodes;
+    if (currentNodes.some(n => n.id === TEMP_INPUT_NODE_ID)) {
+      updateGraph({
+        nodes: currentNodes.filter(n => n.id !== TEMP_INPUT_NODE_ID),
+        edges: edges.filter(e => e.target !== TEMP_INPUT_NODE_ID),
+      });
+    }
+  }, [activeWorkspaceId, edges, updateGraph]);
+
   return (
     <div className="flow-canvas" style={{width: '100%', height: '100%', position: 'relative' }}>
       {/* {activeWorkspace && (
@@ -590,6 +606,8 @@ export default function FlowCanvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
+        onMove={onViewportChange}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
