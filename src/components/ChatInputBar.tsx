@@ -30,7 +30,7 @@ const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSubmit, isLoading }) => {
       sx={{
         display: 'flex',
         alignItems: 'center',
-        p: 1.5,
+        paddingX: 1.5, 
         borderTop: 1,
         borderColor: 'divider',
         backgroundColor: 'background.paper',
@@ -50,9 +50,30 @@ const ChatInputBar: React.FC<ChatInputBarProps> = ({ onSubmit, isLoading }) => {
         disabled={isLoading}
         autoFocus
         sx={{
-            '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
-            }
+          // --- 修改点 2: 核心样式覆盖 ---
+          height: '100%', // 让 TextField 填满父容器的高度
+          '& .MuiOutlinedInput-root': {
+            height: '100%',
+            // 移除 TextField 的边框
+            '& .MuiOutlinedInput-notchedOutline': {
+              border: 'none',
+            },
+            // 移除 hover 时的边框效果
+            '&:hover .MuiOutlinedInput-notchedOutline': {
+              border: 'none',
+            },
+            // 移除 focus 时的边框效果
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              border: 'none',
+            },
+            // 将内边距应用到输入区域，而不是整个 root
+            padding: 0, 
+            alignItems: 'flex-start', // 当多行时，从顶部对齐
+          },
+          // --- 修改点 3: 为真正的 input 元素添加内边距 ---
+          '& .MuiOutlinedInput-input': {
+            padding: '12px 0', // 给予文本垂直方向的呼吸空间
+          },
         }}
       />
       <IconButton

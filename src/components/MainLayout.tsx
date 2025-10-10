@@ -83,13 +83,13 @@ const CodingModeLayout: React.FC = () => {
         {activeTool === 'USER_SPACE' && <UserSpacePanel />}
         <Box sx={{ flex: 1, position: 'relative' }}>
           <PanelGroup direction="horizontal">
-            <Panel defaultSize={35} minSize={25}><LinearChatPanel /></Panel>
+            <Panel defaultSize={25} minSize={15}><LinearChatPanel /></Panel>
             <PanelResizeHandle>
               <Box sx={{ width: '8px', height: '100%', bgcolor: 'grey.300', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', '&:hover': { bgcolor: 'primary.main' }}}>
                 <Box sx={{ width: '2px', height: '40px', bgcolor: 'rgba(0,0,0,0.1)', borderRadius: '2px' }} />
               </Box>
             </PanelResizeHandle>
-            <Panel defaultSize={65} minSize={30}><CodeServerPanel environment={selectedEnvironment} /></Panel>
+            <Panel defaultSize={75} minSize={30}><CodeServerPanel environment={selectedEnvironment} /></Panel>
           </PanelGroup>
         </Box>
       </Box>
