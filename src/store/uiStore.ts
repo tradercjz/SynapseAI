@@ -11,6 +11,9 @@ interface UIState {
   workspaceMenuAnchorEl: HTMLElement | null; 
   activeCodeServerEnv: Environment | null;
   activeMode: AppMode;
+  isLoginModalOpen: boolean;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
   toggleActiveTool: (tool: ActiveTool) => void;
   setWorkspaceMenuAnchorEl: (el: HTMLElement | null) => void; 
   setActiveCodeServerEnv: (env: Environment | null) => void;
@@ -23,6 +26,9 @@ export const useUIStore = create<UIState>((set) => ({
   activeCodeServerEnv: null,
   activeMode: 'CHAT',
 
+  isLoginModalOpen: false,
+  openLoginModal: () => set({ isLoginModalOpen: true }),
+  closeLoginModal: () => set({ isLoginModalOpen: false }),
 
   // This function allows toggling a panel open and closed.
   toggleActiveTool: (tool) => set((state) => ({

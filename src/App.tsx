@@ -22,10 +22,11 @@ const darkTheme = createTheme({
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const { isLoginModalOpen, openLoginModal, closeLoginModal } = useUIStore();
   const { activeMode } = useUIStore(); // 1. 从 store 获取当前的应用模式
   const headerRef = useRef<HTMLDivElement>(null); // 1. 创建一个 ref 用于引用 Header
   const [headerHeight, setHeaderHeight] = useState(0); // 2. 创建一个 state 存储测量到的高度
+  
 
   useEffect(() => {
     if (headerRef.current) {
@@ -58,7 +59,7 @@ function App() {
         <Header
           ref={headerRef}
           isAuthenticated={!!token}
-          onLoginClick={() => setIsLoginModalOpen(true)}
+          onLoginClick={openLoginModal}
           onLogoutClick={handleLogout}
         />
         
@@ -81,7 +82,7 @@ function App() {
         <WorkspaceManager />
         <LoginModal
           open={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
+          onClose={closeLoginModal}
           onLoginSuccess={handleLoginSuccess}
         />
       </Box>

@@ -12,7 +12,7 @@ export default defineConfig({
       // 或者使用更灵活的选项配置
       '/api': {
         // --- 关键：这里需要填写您 FastAPI 后端的地址 ---
-        target: 'http://127.0.0.1:8001', 
+        target: 'http://183.134.101.139:8001', 
         
         // changeOrigin: true 对于反向代理是必须的，它会修改请求头中的 Host，
         // 使其与目标服务器匹配，很多服务器基于 Host 头进行路由。

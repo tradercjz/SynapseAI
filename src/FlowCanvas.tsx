@@ -612,6 +612,7 @@ export default function FlowCanvas() {
         onConnectEnd={onConnectEnd}
         nodeTypes={nodeTypes}
         fitView
+        proOptions={{ hideAttribution: true }}
       >
         <Controls />
         <Background />

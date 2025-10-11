@@ -5,6 +5,7 @@ import type { Node } from 'reactflow';
 import axios from 'axios';
 import type { NodeData } from './types'; // 我们自己的 NodeData 类型
 import { useContextStore } from './store/contextStore';
+import { useUIStore } from './store/uiStore';
 
 // 定义回调函数的类型
 export interface StreamCallbacks {
@@ -13,7 +14,7 @@ export interface StreamCallbacks {
   onError: (error: any) => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api/v1'; 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://183.134.101.139:8001/api/v1'; 
 
 
 const apiClient = axios.create({
@@ -30,6 +31,49 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+
+    // --- 您的新增逻辑 ---
+    // 如果 token 不存在，并且这是一个需要认证的 API 调用 (我们可以假设所有 API 都需要)
+    if (!token) {
+      console.warn('No token found in localStorage. Blocking API request and opening login modal.');
+      
+      // 调用全局 action 打开登录框
+      useUIStore.getState().openLoginModal();
+      
+      // 创建一个自定义的 CancelToken 来中断此次请求
+      const cancelToken = new axios.CancelToken(cancel => cancel('Request cancelled: No authentication token.'));
+      
+      // 返回一个带有 cancelToken 的配置，axios 会识别并中断它
+      // 同时附带一个 rejection，让调用方知道请求失败了
+      return Promise.reject({ ...config, cancelToken });
+    }
+
+    // 如果 token 存在，则正常附加到请求头
+    config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+apiClient.interceptors.response.use(
+  (response) => response, // 对成功的响应不做任何处理
+  (error) => {
+    // 检查响应是否存在，以及状态码是否为 401
+    if (error.response && error.response.status === 401) {
+      console.warn('API request returned 401. Opening login modal.');
+      // 从 localStorage 中清除可能已失效的 token
+      localStorage.removeItem('token');
+      // 调用全局 action 来打开登录框
+      // 使用 getState() 可以从 store 外部访问状态和 actions
+      useUIStore.getState().openLoginModal();
+    }
+    // 必须将错误继续抛出，以便原始的调用者知道请求失败了
+    return Promise.reject(error);
+  }
 );
 
 // 我们也导出一个helper，让其他地方也能用

@@ -1,7 +1,7 @@
 // src/authService.ts
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8001/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://183.134.101.139:8001/api/v1';
 
 export const login = async (username: string, password: string): Promise<string> => {
   // FastAPI 的 OAuth2PasswordRequestForm 需要 application/x-www-form-urlencoded 格式
