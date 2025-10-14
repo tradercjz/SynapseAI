@@ -86,6 +86,30 @@ const buildInjectedContext = (
   return hasContent ? contextParts : null;
 };
 
+const getDescendants = (nodeId: string, nodes: Node<NodeData>[], edges: Edge[]): string[] => {
+  const descendants = new Set<string>();
+  const queue: string[] = [nodeId];
+  const visited = new Set<string>([nodeId]);
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    
+    // 找到所有从当前节点出发的边
+    const outgoingEdges = edges.filter(edge => edge.source === currentId);
+    
+    for (const edge of outgoingEdges) {
+      const targetId = edge.target;
+      if (!visited.has(targetId)) {
+        visited.add(targetId);
+        descendants.add(targetId);
+        queue.push(targetId);
+      }
+    }
+  }
+
+  return Array.from(descendants);
+};
+
 export default function FlowCanvas() {
   const { workspaces, activeWorkspaceId, actions } = useWorkspaceStore();
   const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
@@ -148,11 +172,61 @@ export default function FlowCanvas() {
 
   const updateGraph = actions.updateActiveWorkspaceGraph;
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => updateGraph({ nodes: applyNodeChanges(changes, nodes), edges }), [nodes, edges, updateGraph]);
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => updateGraph({ nodes, edges: applyEdgeChanges(changes, edges) }), [nodes, edges, updateGraph]);
+  // 1. 修改 onNodesChange 以便我们可以拦截 'remove' 类型的 change
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    // 找到所有 'remove' 类型的 change
+    const removeChanges = changes.filter(change => change.type === 'remove');
+
+    if (removeChanges.length > 0) {
+      // 如果有删除操作，我们不直接应用 change，而是调用自定义的 onNodesDelete 逻辑
+      const nodesToDelete = nodes.filter(n => removeChanges.some(rc => rc.id === n.id));
+      onNodesDelete(nodesToDelete);
+    } else {
+      // 如果没有删除操作，则正常应用其他的 change (如拖拽、选中)
+      const newNodes = applyNodeChanges(changes, nodes);
+      updateGraph({ nodes: newNodes, edges });
+    }
+  }, [nodes, edges, updateGraph]);
+
+  // 2. onEdgesChange 保持基本逻辑，但现在也使用 updateGraph
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    const newEdges = applyEdgeChanges(changes, edges);
+    updateGraph({ nodes, edges: newEdges });
+  }, [nodes, edges, updateGraph]);
   const onConnect = useCallback((connection: Connection) => updateGraph({ nodes, edges: addEdge(connection, edges) }), [nodes, edges, updateGraph]);
   
+   // 4. 创建我们的核心删除逻辑函数 onNodesDelete
+  const onNodesDelete = useCallback((deletedNodes: Node<NodeData>[]) => {
+    console.log("Nodes marked for deletion:", deletedNodes.map(n => n.id));
 
+    // 使用 Set 来存储所有需要删除的节点的 ID，以避免重复
+    const allNodeIdsToDelete = new Set<string>();
+
+    // 遍历最初被用户选定删除的节点
+    for (const nodeToDelete of deletedNodes) {
+      // 将节点本身添加到删除列表
+      allNodeIdsToDelete.add(nodeToDelete.id);
+
+      // 找到并添加该节点的所有后代节点
+      const descendants = getDescendants(nodeToDelete.id, nodes, edges);
+      descendants.forEach(descId => allNodeIdsToDelete.add(descId));
+    }
+
+    // 过滤出需要保留的节点
+    const remainingNodes = nodes.filter(node => !allNodeIdsToDelete.has(node.id));
+    
+    // 过滤出需要保留的边
+    // 一条边被保留的条件是：它的 source 和 target 节点都存在于保留节点列表中
+    const remainingEdges = edges.filter(edge => 
+      !allNodeIdsToDelete.has(edge.source) && !allNodeIdsToDelete.has(edge.target)
+    );
+
+    console.log("Total nodes to delete (including descendants):", Array.from(allNodeIdsToDelete));
+    
+    // 使用新的节点和边列表来更新状态
+    updateGraph({ nodes: remainingNodes, edges: remainingEdges });
+
+  }, [nodes, edges, updateGraph]);
   useEffect(() => {
     if (userInteracted) return; // 用户已经交互过，就不自动布局了
     if (nodes.length === 0) return;
