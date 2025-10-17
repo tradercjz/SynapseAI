@@ -14,3 +14,18 @@ export const login = async (username: string, password: string): Promise<string>
   // 成功后返回 access_token
   return response.data.access_token;
 };
+
+export const register = async (email: string, password: string): Promise<any> => {
+  const response = await axios.post(`${API_BASE_URL}/auth/register`, { email, password });
+  return response.data;
+};
+
+export const verifyEmail = async (email: string, code: string): Promise<any> => {
+  const response = await axios.post(`${API_BASE_URL}/auth/verify-email`, { email, code });
+  return response.data;
+};
+
+export const resendVerificationCode = async (email: string): Promise<any> => {
+  const response = await axios.post(`${API_BASE_URL}/auth/resend-verification-email`, { email });
+  return response.data;
+};

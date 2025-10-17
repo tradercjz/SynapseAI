@@ -1,17 +1,18 @@
 // src/App.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { ThemeProvider, createTheme, useTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { Chat as ChatIcon, Code as CodeIcon } from '@mui/icons-material';
 import { AppMode, useUIStore } from './store/uiStore';
 import AuthControl from './components/AuthControl';
-import LoginModal from './components/LoginModal';
+import AuthModal from './components/AuthModal'; 
 import MainLayout from './components/MainLayout'; // Import our new layout component
 import WorkspaceManager from './components/WorkspaceManager';
 import './styles.css';
 import Header from './components/Header';
-import { useRef } from 'react';
+import ProfilePanel from './components/ProfilePanel';
+import { jwtDecode } from 'jwt-decode';
 
 
 const darkTheme = createTheme({
@@ -22,10 +23,11 @@ const darkTheme = createTheme({
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const { isLoginModalOpen, openLoginModal, closeLoginModal } = useUIStore();
+  const { authModalState, openLoginModal, closeAuthModal } = useUIStore(); 
   const { activeMode } = useUIStore(); // 1. 从 store 获取当前的应用模式
   const headerRef = useRef<HTMLDivElement>(null); // 1. 创建一个 ref 用于引用 Header
   const [headerHeight, setHeaderHeight] = useState(0); // 2. 创建一个 state 存储测量到的高度
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   
 
   useEffect(() => {
@@ -38,8 +40,18 @@ function App() {
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
+      try {
+        // 4. 当 token 变化时，解码它并提取 email
+        const decoded = jwtDecode<DecodedToken>(token);
+        setUserEmail(decoded.sub);
+      } catch (error) {
+        console.error("Invalid token:", error);
+        setToken(null); // 如果 token 无效，则清空
+        setUserEmail(null);
+      }
     } else {
       localStorage.removeItem('token');
+      setUserEmail(null); // 清空 email
     }
   }, [token]);
 
@@ -60,7 +72,6 @@ function App() {
           ref={headerRef}
           isAuthenticated={!!token}
           onLoginClick={openLoginModal}
-          onLogoutClick={handleLogout}
         />
         
         <Box
@@ -80,11 +91,13 @@ function App() {
         </Box>
         
         <WorkspaceManager />
-        <LoginModal
-          open={isLoginModalOpen}
-          onClose={closeLoginModal}
-          onLoginSuccess={handleLoginSuccess}
+        <ProfilePanel
+          userEmail={userEmail}
+          onLogout={handleLogout}
         />
+        <AuthModal
+          onLoginSuccess={handleLoginSuccess}
+          />
       </Box>
     </ThemeProvider>
   );

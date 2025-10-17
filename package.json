@@ -18,6 +18,7 @@
     "axios": "^1.11.0",
     "classnames": "^2.5.1",
     "dagre": "^0.8.5",
+    "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
     "pdfjs-dist": "^5.4.149",
     "react": "^19.1.1",

@@ -8,14 +8,13 @@ import { useWorkspaceStore } from '../store/workspaceStore';
 interface HeaderProps {
   isAuthenticated: boolean;
   onLoginClick: () => void;
-  onLogoutClick: () => void;
 }
 
 // 2. 将组件的渲染逻辑定义为一个独立的、带有明确类型的函数常量
 const HeaderRenderFunction: React.ForwardRefRenderFunction<HTMLDivElement, HeaderProps> = (props, ref) => {
-  const { isAuthenticated, onLoginClick, onLogoutClick } = props;
+  const { isAuthenticated, onLoginClick } = props;
 
-  const { activeMode, setActiveMode, setWorkspaceMenuAnchorEl } = useUIStore();
+  const { activeMode, setActiveMode, setWorkspaceMenuAnchorEl, setProfileMenuAnchorEl } = useUIStore();
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
   const activeWorkspace = activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
 
@@ -30,6 +29,10 @@ const HeaderRenderFunction: React.ForwardRefRenderFunction<HTMLDivElement, Heade
 
   const handleWorkspaceMenuClick = (event: React.MouseEvent<HTMLElement>) => {
     setWorkspaceMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleProfileMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setProfileMenuAnchorEl(event.currentTarget);
   };
 
   // return JSX 的部分保持完全不变
@@ -124,8 +127,8 @@ const HeaderRenderFunction: React.ForwardRefRenderFunction<HTMLDivElement, Heade
         {/* 右侧区域: 登录/用户信息 */}
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', minWidth: 200 }}>
           {isAuthenticated ? (
-            <Tooltip title="Logout">
-              <IconButton onClick={onLogoutClick}>
+            <Tooltip title="Account">
+              <IconButton onClick={handleProfileMenuClick}>
                 <Avatar sx={{ bgcolor: 'secondary.main', width: 32, height: 32 }}>U</Avatar>
               </IconButton>
             </Tooltip>

@@ -5,6 +5,7 @@ import type { Environment } from './contextStore';
 // Defines the possible tools that can be active in the sidebar.
 export type ActiveTool = 'ENVIRONMENTS' | 'USER_SPACE' | 'MARKETPLACE' | null;
 export type AppMode = 'CHAT' | 'CODING';
+export type AuthModalState = 'CLOSED' | 'LOGIN' | 'REGISTER' | 'VERIFY_EMAIL';
 
 interface UIState {
   activeTool: ActiveTool;
@@ -12,11 +13,18 @@ interface UIState {
   activeCodeServerEnv: Environment | null;
   activeMode: AppMode;
   isLoginModalOpen: boolean;
+  authModalState: AuthModalState;
+  emailForVerification: string | null;
+  profileMenuAnchorEl: HTMLElement | null;
+  openRegisterModal: () => void;
+  openVerificationModal: (email: string) => void;
+  closeAuthModal: () => void;
   openLoginModal: () => void;
   closeLoginModal: () => void;
   toggleActiveTool: (tool: ActiveTool) => void;
   setWorkspaceMenuAnchorEl: (el: HTMLElement | null) => void; 
   setActiveCodeServerEnv: (env: Environment | null) => void;
+  setProfileMenuAnchorEl: (el: HTMLElement | null) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -25,11 +33,15 @@ export const useUIStore = create<UIState>((set) => ({
   workspaceMenuAnchorEl: null,
   activeCodeServerEnv: null,
   activeMode: 'CHAT',
-
+  authModalState: 'CLOSED',
+  emailForVerification: null,
+  profileMenuAnchorEl: null,
   isLoginModalOpen: false,
-  openLoginModal: () => set({ isLoginModalOpen: true }),
   closeLoginModal: () => set({ isLoginModalOpen: false }),
-
+  openLoginModal: () => set({ authModalState: 'LOGIN' }),
+  openRegisterModal: () => set({ authModalState: 'REGISTER' }),
+  openVerificationModal: (email: string) => set({ authModalState: 'VERIFY_EMAIL', emailForVerification: email }),
+  closeAuthModal: () => set({ authModalState: 'CLOSED', emailForVerification: null }),
   // This function allows toggling a panel open and closed.
   toggleActiveTool: (tool) => set((state) => ({
     activeTool: state.activeTool === tool ? null : tool,
@@ -51,4 +63,5 @@ export const useUIStore = create<UIState>((set) => ({
     // 其他情况（为了代码健壮性），只切换模式
     return { activeMode: mode };
   }),
+  setProfileMenuAnchorEl: (el) => set({ profileMenuAnchorEl: el }),
 }));

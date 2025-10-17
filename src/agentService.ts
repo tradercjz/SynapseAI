@@ -60,7 +60,16 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response) => response, // 对成功的响应不做任何处理
+  (response) => {
+    
+    const newToken = response.headers['x-new-token'];
+    if (newToken) {
+      console.log('Received a new token, updating localStorage...');
+      localStorage.setItem('token', newToken);
+    }
+
+    return response;
+  }, // 对成功的响应不做任何处理
   (error) => {
     // 检查响应是否存在，以及状态码是否为 401
     if (error.response && error.response.status === 401) {
